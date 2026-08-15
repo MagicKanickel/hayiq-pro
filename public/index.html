@@ -105,6 +105,41 @@
   .modal .row{display:flex; gap:10px}
   .modal .row button{flex:1; padding:13px; border-radius:11px; font-size:15px; font-weight:800; border:1px solid var(--line); background:transparent; color:var(--txt)}
   .modal .row button.go{background:linear-gradient(180deg,#34d399,#059669); color:#052015; border:0}
+
+  /* ── Einstellungen ── */
+  .sec{margin-bottom:22px}
+  .secHead{font-size:12px; letter-spacing:.13em; text-transform:uppercase; color:var(--accent); font-weight:800; margin:0 4px 10px}
+  .secHead.sub{color:var(--muted); margin-top:16px}
+  .card2{background:linear-gradient(180deg,var(--tile),var(--tile2)); border:1px solid var(--line); border-radius:14px; padding:6px 14px}
+  .row2{display:flex; align-items:center; gap:12px; padding:12px 2px; border-bottom:1px solid var(--line)}
+  .row2:last-child{border-bottom:0}
+  .row2 .lbl{font-size:15px; font-weight:600; flex:1}
+  .durEdit{display:flex; align-items:center; gap:4px; color:var(--muted); font-weight:700}
+  .durEdit input, .row2 select, .uploadRow input[type=file]{background:#0e1826; border:1px solid var(--line); border-radius:8px; color:var(--txt); font:inherit; font-size:15px; padding:8px 10px}
+  .durEdit input{width:52px; text-align:center}
+  .row2 select{flex:0 1 auto; max-width:58%}
+  .mini-btn{background:var(--accent); color:#052015; border:0; border-radius:8px; width:34px; height:34px; font-size:16px; font-weight:800; cursor:pointer; flex:0 0 34px}
+  .wp-row{display:flex; align-items:center; gap:12px; padding:11px 2px; border-bottom:1px solid var(--line)}
+  .wp-row:last-child{border-bottom:0}
+  .wp-row .wd{font-size:15px; font-weight:600; flex:1}
+  .wp-row input[type=time]{background:#0e1826; border:1px solid var(--line); border-radius:8px; color:var(--txt); font:inherit; padding:7px 9px}
+  .sw2{width:46px; height:27px; border-radius:999px; background:#26364c; position:relative; flex:0 0 46px; cursor:pointer; transition:background .18s}
+  .sw2::after{content:""; position:absolute; top:3px; left:3px; width:21px; height:21px; border-radius:50%; background:#fff; transition:left .18s}
+  .sw2.on{background:var(--accent)} .sw2.on::after{left:22px}
+  .uploadRow{display:flex; gap:10px; align-items:center; padding:12px 2px; flex-wrap:wrap}
+  .uploadRow input[type=file]{flex:1; min-width:160px}
+  .up-btn{background:linear-gradient(180deg,#34d399,#059669); color:#052015; border:0; border-radius:9px; padding:10px 16px; font-weight:800; font-size:14px; cursor:pointer}
+  .up-btn:disabled{opacity:.5}
+  .upStatus{font-size:13.5px; color:var(--muted); padding:0 2px 8px; min-height:16px}
+  .songList, .logList{padding:4px 0}
+  .songList .s-item, .logList .l-item{display:flex; justify-content:space-between; gap:10px; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14px}
+  .songList .s-item:last-child, .logList .l-item:last-child{border-bottom:0}
+  .songList .s-item .meta, .logList .l-item .meta{color:var(--muted); font-weight:600}
+  .statRow{display:flex; gap:10px; padding:10px 0}
+  .stat{flex:1; text-align:center}
+  .stat .sk{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .stat .sv{display:block; font-size:22px; font-weight:800; margin-top:3px}
+  .stat:nth-child(2) .sv{color:var(--info)} .stat:nth-child(3) .sv{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -130,6 +165,7 @@
     <h1>Heubedampfer</h1>
     <span class="state" id="connState">verbinde…</span>
     <span class="sp"></span>
+    <button class="ghost" id="settingsBtn">⚙ Einstellungen</button>
     <button class="ghost" id="logoutBtn">Abmelden</button>
   </div>
 
@@ -167,6 +203,73 @@
         <button class="step plus" id="tPlus" disabled>+</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- EINSTELLUNGEN -->
+<div class="app hidden" id="settingsView">
+  <div class="topbar">
+    <button class="ghost" id="settingsBack">‹ Zurück</button>
+    <h1>Einstellungen</h1>
+    <span class="sp"></span>
+  </div>
+
+  <div class="sec">
+    <div class="secHead">Zeit</div>
+    <div class="card2">
+      <div class="row2"><span class="lbl">Max. Dauer</span>
+        <div class="durEdit">
+          <input type="number" id="maxH" min="0" max="23">:<input type="number" id="maxM" min="0" max="59">:<input type="number" id="maxS" min="0" max="59">
+          <button class="mini-btn" id="maxSave" title="Speichern">✓</button>
+        </div>
+      </div>
+      <div class="row2"><span class="lbl">Haltedauer</span>
+        <div class="durEdit">
+          <input type="number" id="holdH" min="0" max="23">:<input type="number" id="holdM" min="0" max="59">:<input type="number" id="holdS" min="0" max="59">
+          <button class="mini-btn" id="holdSave" title="Speichern">✓</button>
+        </div>
+      </div>
+    </div>
+    <div class="secHead sub">Wochenplaner — Auto-Start</div>
+    <div class="card2" id="weekplanList"></div>
+  </div>
+
+  <div class="sec">
+    <div class="secHead">Musik</div>
+    <div class="card2">
+      <div class="row2"><span class="lbl">Start-Melodie</span><select id="startMelodySel"></select></div>
+      <div class="row2"><span class="lbl">End-Melodie</span><select id="endMelodySel"></select></div>
+    </div>
+    <div class="secHead sub">Song hochladen</div>
+    <div class="card2">
+      <div class="uploadRow">
+        <input type="file" id="songFile" accept=".mp3,.wav">
+        <button class="up-btn" id="songUpload">Hochladen</button>
+      </div>
+      <div class="upStatus" id="upStatus"></div>
+      <div class="songList" id="songList"></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="secHead">Stromzähler</div>
+    <div class="card2">
+      <div class="statRow">
+        <div class="stat"><span class="sk">Sitzungen</span><span class="sv tnum" id="pSessions">—</span></div>
+        <div class="stat"><span class="sk">Verbrauch</span><span class="sv tnum" id="pKwh">—</span></div>
+        <div class="stat"><span class="sk">Kosten</span><span class="sv tnum" id="pEur">—</span></div>
+      </div>
+    </div>
+    <div class="card2">
+      <div class="row2"><span class="lbl">Heizleistung (Watt)</span>
+        <div class="durEdit"><input type="number" id="pWatt" min="1" max="99999" style="width:80px"><button class="mini-btn" id="pWattSave">✓</button></div>
+      </div>
+      <div class="row2"><span class="lbl">Preis (ct/kWh)</span>
+        <div class="durEdit"><input type="number" id="pPrice" min="0" max="9999" style="width:80px"><button class="mini-btn" id="pPriceSave">✓</button></div>
+      </div>
+    </div>
+    <div class="secHead sub">Letzte Sitzungen</div>
+    <div class="card2 logList" id="powerLog"></div>
   </div>
 </div>
 
@@ -211,7 +314,7 @@
 (function(){
   "use strict";
   const $ = (id) => document.getElementById(id);
-  const loginView = $('loginView'), appView = $('appView');
+  const loginView = $('loginView'), appView = $('appView'), settingsView = $('settingsView');
 
   // ── Login ──
   async function checkAuth(){
@@ -220,8 +323,8 @@
       if (j.loggedIn){ showApp(); } else { showLogin(); }
     }catch{ showLogin(); }
   }
-  function showLogin(){ loginView.classList.remove('hidden'); appView.classList.add('hidden'); }
-  function showApp(){ loginView.classList.add('hidden'); appView.classList.remove('hidden'); connect(); }
+  function showLogin(){ loginView.classList.remove('hidden'); appView.classList.add('hidden'); settingsView.classList.add('hidden'); }
+  function showApp(){ loginView.classList.add('hidden'); settingsView.classList.add('hidden'); appView.classList.remove('hidden'); connect(); }
 
   $('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -256,6 +359,8 @@
     ws.onmessage = (ev) => {
       let m; try{ m = JSON.parse(ev.data); }catch{ return; }
       if (m.type === 'state'){ online = m.online; st = m.status; render(); }
+      else if (m.type === 'settings'){ settings = m.settings; renderSettings(); }
+      else if (m.type === 'power'){ renderPower(m.power); }
       else if (m.type === 'cmdResult'){
         if (m.ok) toast('Befehl gesendet');
         else toast(m.error || 'Befehl abgelehnt', true);
@@ -361,6 +466,106 @@
     t.classList.toggle('err', !!isErr); t.classList.add('show');
     clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200);
   }
+
+  // ── Einstellungen ──
+  const DAYS = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+  let settings = null;
+
+  function sendCmd(obj){
+    if (!ws || ws.readyState !== WebSocket.OPEN){ toast('Keine Verbindung', true); return; }
+    ws.send(JSON.stringify({ type:'cmd', ...obj }));
+  }
+  const nz = (v)=>{ const n=parseInt(v,10); return isNaN(n)?0:n; };
+  function songLabel(f){ return f.replace(/\.(mp3|wav)$/i,''); }
+
+  $('settingsBtn').addEventListener('click', () => {
+    appView.classList.add('hidden'); settingsView.classList.remove('hidden'); window.scrollTo(0,0);
+    send('getSettings'); send('getPower');
+  });
+  $('settingsBack').addEventListener('click', () => {
+    settingsView.classList.add('hidden'); appView.classList.remove('hidden'); window.scrollTo(0,0);
+  });
+
+  function fillMelodySelect(sel, songs, cur){
+    sel.innerHTML='';
+    const opts=[['','Keine'],['__RANDOM__','Zufall']].concat(songs.map(s=>[s, songLabel(s)]));
+    for(const [v,l] of opts){ const o=document.createElement('option'); o.value=v; o.textContent=l; if(v===cur)o.selected=true; sel.appendChild(o); }
+  }
+
+  function renderSettings(){
+    if(!settings) return;
+    const md=settings.maxDur||[0,0,0], hd=settings.holdDur||[0,0,0];
+    $('maxH').value=md[0]; $('maxM').value=md[1]; $('maxS').value=md[2];
+    $('holdH').value=hd[0]; $('holdM').value=hd[1]; $('holdS').value=hd[2];
+
+    const wl=$('weekplanList'); wl.innerHTML='';
+    (settings.weekplan||[]).forEach((d,i)=>{
+      const t=`${String(d.h).padStart(2,'0')}:${String(d.m).padStart(2,'0')}`;
+      const row=document.createElement('div'); row.className='wp-row';
+      row.innerHTML=`<span class="wd">${DAYS[i]}</span>`
+        +`<input type="time" value="${t}" data-day="${i}" class="wp-time">`
+        +`<span class="sw2 ${d.a?'on':''}" data-day="${i}"></span>`;
+      wl.appendChild(row);
+    });
+    wl.querySelectorAll('.sw2').forEach(sw=>sw.onclick=()=>{
+      const i=+sw.dataset.day, d=settings.weekplan[i];
+      sendCmd({action:'setWeekday', day:i, active:!d.a, hour:d.h, min:d.m});
+    });
+    wl.querySelectorAll('.wp-time').forEach(inp=>inp.onchange=()=>{
+      const i=+inp.dataset.day, d=settings.weekplan[i], parts=(inp.value||'0:0').split(':');
+      sendCmd({action:'setWeekday', day:i, active:d.a, hour:nz(parts[0]), min:nz(parts[1])});
+    });
+
+    fillMelodySelect($('startMelodySel'), settings.songs||[], settings.startMelody||'');
+    fillMelodySelect($('endMelodySel'),   settings.songs||[], settings.endMelody||'');
+
+    const sl=$('songList'); sl.innerHTML='';
+    (settings.songs||[]).forEach(s=>{ const d=document.createElement('div'); d.className='s-item';
+      d.innerHTML=`<span>${songLabel(s)}</span><span class="meta">${(s.split('.').pop()||'').toUpperCase()}</span>`; sl.appendChild(d); });
+    if(!(settings.songs||[]).length) sl.innerHTML='<div class="s-item"><span class="meta">Keine Songs auf dem Gerät</span></div>';
+
+    $('pWatt').value=settings.powerWatt||0; $('pPrice').value=settings.powerPriceCt||0;
+  }
+
+  function renderPower(p){
+    if(!p) return;
+    $('pSessions').textContent = (p.sessions!=null? p.sessions : '—');
+    $('pKwh').textContent = (p.kwh!=null? p.kwh.toFixed(1).replace('.',',')+' kWh':'—');
+    $('pEur').textContent = (p.eur!=null? p.eur.toFixed(2).replace('.',',')+' €':'—');
+    const log=$('powerLog'); log.innerHTML='';
+    (p.log||[]).forEach(e=>{
+      let date='—'; if(e.t){ const d=new Date(e.t*1000);
+        date=`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+      const it=document.createElement('div'); it.className='l-item';
+      it.innerHTML=`<span>${date}</span><span class="meta">${Math.round((e.dur||0)/60)} min · ${(e.kwh||0).toFixed(2).replace('.',',')} kWh · ${(e.eur||0).toFixed(2).replace('.',',')} €</span>`;
+      log.appendChild(it);
+    });
+    if(!(p.log||[]).length) log.innerHTML='<div class="l-item"><span class="meta">Noch keine Sitzungen</span></div>';
+  }
+
+  $('maxSave').onclick  = ()=>sendCmd({action:'setMaxDur',  h:nz($('maxH').value),  m:nz($('maxM').value),  s:nz($('maxS').value)});
+  $('holdSave').onclick = ()=>sendCmd({action:'setHoldDur', h:nz($('holdH').value), m:nz($('holdM').value), s:nz($('holdS').value)});
+  $('startMelodySel').onchange = e=>sendCmd({action:'setMelody', which:'start', file:e.target.value});
+  $('endMelodySel').onchange   = e=>sendCmd({action:'setMelody', which:'end',   file:e.target.value});
+  $('pWattSave').onclick  = ()=>sendCmd({action:'setPowerCfg', watt:nz($('pWatt').value)});
+  $('pPriceSave').onclick = ()=>sendCmd({action:'setPowerCfg', priceCt:nz($('pPrice').value)});
+
+  $('songUpload').onclick = async ()=>{
+    const f=$('songFile').files[0];
+    if(!f){ $('upStatus').textContent='Bitte zuerst eine Datei wählen.'; return; }
+    $('songUpload').disabled=true; $('upStatus').textContent='Lade auf Server hoch…';
+    try{
+      const fd=new FormData(); fd.append('song', f);
+      const r=await fetch('/api/upload-song',{method:'POST',body:fd});
+      const j=await r.json();
+      if(!r.ok||!j.ok){ $('upStatus').textContent=j.error||'Upload fehlgeschlagen'; return; }
+      $('upStatus').textContent='Übertrage an das Gerät…';
+      sendCmd({action:'downloadSong', url:j.url, name:j.name});
+      $('songFile').value='';
+      setTimeout(()=>{ $('upStatus').textContent='Fertig – der Song wird auf dem Gerät gespeichert und erscheint gleich in der Liste.'; }, 800);
+    }catch{ $('upStatus').textContent='Verbindungsfehler beim Upload.'; }
+    finally{ $('songUpload').disabled=false; }
+  };
 
   render();
   checkAuth();

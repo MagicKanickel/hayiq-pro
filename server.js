@@ -8,9 +8,11 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import session from 'express-session';
+import multer from 'multer';
 import { WebSocketServer } from 'ws';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,10 +43,15 @@ function safeEqual(a, b) {
 let deviceSocket = null;                 // aktuelle Geraeteverbindung (genau eine)
 let deviceOnline = false;
 let lastStatus   = null;                 // letzter Status vom Geraet
+let lastSettings = null;                 // letzte Einstellungen vom Geraet
 let lastSeen     = 0;                    // millis des letzten Statuspakets
 const appClients = new Set();            // eingeloggte Browser-Sockets
 
-const VALID_ACTIONS = new Set(['start', 'stop', 'pause', 'resume', 'setTarget', 'confirmEnd']);
+const VALID_ACTIONS = new Set([
+  'start', 'stop', 'pause', 'resume', 'setTarget', 'confirmEnd',
+  'getSettings', 'getPower', 'setMaxDur', 'setHoldDur', 'setWeekday',
+  'setMelody', 'setPowerCfg', 'downloadSong'
+]);
 
 // ── HTTP / Express ──────────────────────────────────────────────────────────
 const app = express();
@@ -92,6 +99,24 @@ app.get('/api/me', (req, res) => {
 app.get('/api/status', requireAuth, (req, res) => {
   res.json({ online: deviceOnline, lastSeen, status: lastStatus });
 });
+
+// ── Song-Upload (Option B): Datei annehmen, oeffentliche URL zurueckgeben ────
+const uploadsDir = path.join(__dirname, 'uploads');
+fs.mkdirSync(uploadsDir, { recursive: true });
+const upload = multer({ dest: uploadsDir, limits: { fileSize: 25 * 1024 * 1024 } });
+
+app.post('/api/upload-song', requireAuth, upload.single('song'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Keine Datei erhalten' });
+  const cleaned  = (req.file.originalname || 'song.mp3').replace(/[^\w.\- ]/g, '_').slice(0, 60);
+  const safeName = cleaned.replace(/\s+/g, '_');
+  const stored   = Date.now().toString(36) + '_' + safeName;
+  fs.renameSync(req.file.path, path.join(uploadsDir, stored));
+  const base = req.protocol + '://' + req.get('host');
+  res.json({ ok: true, name: safeName, url: base + '/uploads/' + encodeURIComponent(stored) });
+});
+
+// Uploads oeffentlich servieren, damit das Geraet sie per HTTPS herunterladen kann.
+app.use('/uploads', express.static(uploadsDir, { maxAge: '10m' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -162,6 +187,12 @@ wssDevice.on('connection', (ws) => {
       lastSeen = Date.now();
       deviceOnline = true;
       pushDeviceState();
+    } else if (msg.type === 'settings') {
+      lastSettings = { ...msg }; delete lastSettings.type;
+      broadcastToApps({ type: 'settings', settings: lastSettings });
+    } else if (msg.type === 'power') {
+      const p = { ...msg }; delete p.type;
+      broadcastToApps({ type: 'power', power: p });
     }
   });
 
@@ -181,8 +212,9 @@ wssDevice.on('connection', (ws) => {
 // ── Browser-Verbindung (/app) ───────────────────────────────────────────────
 wssApp.on('connection', (ws) => {
   appClients.add(ws);
-  // Sofort den aktuellen Zustand schicken.
+  // Sofort aktuellen Zustand + Einstellungen schicken.
   ws.send(JSON.stringify({ type: 'state', online: deviceOnline, lastSeen, status: lastStatus }));
+  if (lastSettings) ws.send(JSON.stringify({ type: 'settings', settings: lastSettings }));
 
   ws.on('message', (raw) => {
     let msg;
@@ -192,15 +224,18 @@ wssApp.on('connection', (ws) => {
     const action = msg.action;
     if (!VALID_ACTIONS.has(action)) return;
 
-    // Werte-Validierung
-    const out = { type: 'cmd', action };
+    // Werte-Validierung / Aufbau des weiterzuleitenden Befehls
+    let out;
     if (action === 'setTarget') {
       const v = Number(msg.value);
       if (!Number.isFinite(v) || v < TARGET_MIN || v > TARGET_MAX) {
         ws.send(JSON.stringify({ type: 'cmdResult', ok: false, error: 'Zieltemp ausserhalb der Grenzen' }));
         return;
       }
-      out.value = Math.round(v * 100) / 100;
+      out = { type: 'cmd', action, value: Math.round(v * 100) / 100 };
+    } else {
+      // uebrige Befehle (Nutzer ist eingeloggt) mit allen Parametern 1:1 durchreichen
+      out = { ...msg, type: 'cmd', action };
     }
 
     if (!deviceSocket || deviceSocket.readyState !== deviceSocket.OPEN) {
@@ -209,7 +244,7 @@ wssApp.on('connection', (ws) => {
     }
     deviceSocket.send(JSON.stringify(out));
     ws.send(JSON.stringify({ type: 'cmdResult', ok: true, action }));
-    console.log(`[cmd] ${action}${out.value !== undefined ? ' = ' + out.value : ''}`);
+    console.log(`[cmd] ${action}`);
   });
 
   ws.on('close', () => appClients.delete(ws));
