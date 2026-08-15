@@ -135,6 +135,32 @@
   .songList .s-item, .logList .l-item{display:flex; justify-content:space-between; gap:10px; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14px}
   .songList .s-item:last-child, .logList .l-item:last-child{border-bottom:0}
   .songList .s-item .meta, .logList .l-item .meta{color:var(--muted); font-weight:600}
+
+  /* ── WLAN & Sicherheit ── */
+  .hintBox{display:flex; gap:10px; background:rgba(56,189,248,.09); border:1px solid rgba(56,189,248,.35);
+    border-radius:12px; padding:12px 14px; margin:0 2px 12px; font-size:13.5px; line-height:1.5; color:#cfe6f6}
+  .hintBox .ico{flex:0 0 auto; font-size:16px; line-height:1.4}
+  .hintBox b{color:#eaf6ff}
+  .wifiConn{display:flex; align-items:center; gap:10px; padding:12px 2px; font-size:15px}
+  .wifiConn .cd{width:11px; height:11px; border-radius:50%; background:var(--muted2); flex:0 0 11px}
+  .wifiConn .cd.on{background:var(--accent); box-shadow:0 0 9px var(--accent)}
+  .wifiConn .cinfo{flex:1; min-width:0}
+  .wifiConn .cssid{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .wifiConn .cmeta{color:var(--muted); font-size:12.5px; margin-top:2px}
+  .netItem{display:flex; align-items:center; gap:10px; padding:11px 2px; border-bottom:1px solid var(--line)}
+  .netItem:last-child{border-bottom:0}
+  .netItem .nssid{flex:1; min-width:0; font-weight:600; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .badge{font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; font-weight:800; padding:3px 8px; border-radius:999px; white-space:nowrap}
+  .badge.cur{background:var(--accentDim); color:var(--accent); border:1px solid rgba(16,185,129,.4)}
+  .badge.primary{background:rgba(56,189,248,.14); color:var(--info)}
+  .badge.builtin{background:#22304a; color:var(--muted)}
+  .rm-btn{background:transparent; border:1px solid rgba(239,68,68,.5); color:#fca5a5; border-radius:8px;
+    width:34px; height:34px; font-size:16px; font-weight:800; flex:0 0 34px; line-height:1}
+  .rm-btn:disabled{opacity:.3; cursor:not-allowed}
+  .addForm{display:flex; flex-direction:column; gap:8px; padding:8px 2px 4px}
+  .addForm input{font-size:15px; padding:10px 12px}
+  .addForm .up-btn{align-self:flex-start; margin-top:2px}
+  .pinRow input{width:120px}
   .statRow{display:flex; gap:10px; padding:10px 0}
   .stat{flex:1; text-align:center}
   .stat .sk{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700}
@@ -271,6 +297,54 @@
     <div class="secHead sub">Letzte Sitzungen</div>
     <div class="card2 logList" id="powerLog"></div>
   </div>
+
+  <div class="sec">
+    <div class="secHead">WLAN &amp; Sicherheit</div>
+
+    <div class="card2">
+      <div class="wifiConn">
+        <span class="cd" id="wifiDot"></span>
+        <div class="cinfo">
+          <div class="cssid" id="wifiCurSsid">—</div>
+          <div class="cmeta" id="wifiCurMeta">Verbindung wird geladen…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="secHead sub">Gespeicherte Netzwerke</div>
+    <div class="hintBox">
+      <span class="ico">🛡️</span>
+      <span>Ein neues Netz <b>hinzufügen ist sicher</b>: Das Gerät behält seine aktuelle
+      Verbindung und wechselt erst dann, wenn das neue Netz in Reichweite ist. Du kannst
+      z.&nbsp;B. jetzt schon <b>Security-Network-2.4G</b> eintragen – es verbindet sich automatisch,
+      sobald das Gerät dort steht.<br>
+      ⚠️ <b>Entferne niemals das gerade verbundene Netz</b> aus der Ferne – sonst könnte sich das
+      Gerät aussperren. Das ist deshalb gesperrt.</span>
+    </div>
+    <div class="card2" id="netList"></div>
+
+    <div class="secHead sub">Netzwerk hinzufügen</div>
+    <div class="card2">
+      <div class="addForm">
+        <input type="text" id="netSsid" placeholder="WLAN-Name (SSID)" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input type="text" id="netPass" placeholder="Passwort" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="up-btn" id="netAdd">Hinzufügen</button>
+      </div>
+    </div>
+
+    <div class="secHead sub">Geräte-PIN</div>
+    <div class="card2">
+      <div class="row2"><span class="lbl">PIN-Sperre aktiv</span>
+        <span class="sw2" id="pinSwitch"></span>
+      </div>
+      <div class="row2 pinRow"><span class="lbl">Neue PIN (4–7 Ziffern)</span>
+        <div class="durEdit">
+          <input type="text" inputmode="numeric" id="pinCode" maxlength="7" placeholder="••••">
+          <button class="mini-btn" id="pinSave" title="Speichern">✓</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -361,6 +435,11 @@
       if (m.type === 'state'){ online = m.online; st = m.status; render(); }
       else if (m.type === 'settings'){ settings = m.settings; renderSettings(); }
       else if (m.type === 'power'){ renderPower(m.power); }
+      else if (m.type === 'wifi'){ wifi = m.wifi; renderWifi(); }
+      else if (m.type === 'wifiResult'){
+        if (m.ok) toast('Gespeichert');
+        else toast(m.error || 'Abgelehnt', true);
+      }
       else if (m.type === 'cmdResult'){
         if (m.ok) toast('Befehl gesendet');
         else toast(m.error || 'Befehl abgelehnt', true);
@@ -470,6 +549,7 @@
   // ── Einstellungen ──
   const DAYS = ['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
   let settings = null;
+  let wifi = null;
 
   function sendCmd(obj){
     if (!ws || ws.readyState !== WebSocket.OPEN){ toast('Keine Verbindung', true); return; }
@@ -480,7 +560,7 @@
 
   $('settingsBtn').addEventListener('click', () => {
     appView.classList.add('hidden'); settingsView.classList.remove('hidden'); window.scrollTo(0,0);
-    send('getSettings'); send('getPower');
+    send('getSettings'); send('getPower'); send('getWifi');
   });
   $('settingsBack').addEventListener('click', () => {
     settingsView.classList.add('hidden'); appView.classList.remove('hidden'); window.scrollTo(0,0);
@@ -525,6 +605,8 @@
     if(!(settings.songs||[]).length) sl.innerHTML='<div class="s-item"><span class="meta">Keine Songs auf dem Gerät</span></div>';
 
     $('pWatt').value=settings.powerWatt||0; $('pPrice').value=settings.powerPriceCt||0;
+
+    if(typeof settings.pinActive==='boolean') $('pinSwitch').classList.toggle('on', settings.pinActive);
   }
 
   function renderPower(p){
@@ -549,6 +631,71 @@
   $('endMelodySel').onchange   = e=>sendCmd({action:'setMelody', which:'end',   file:e.target.value});
   $('pWattSave').onclick  = ()=>sendCmd({action:'setPowerCfg', watt:nz($('pWatt').value)});
   $('pPriceSave').onclick = ()=>sendCmd({action:'setPowerCfg', priceCt:nz($('pPrice').value)});
+
+  // ── WLAN & Sicherheit ──
+  const esc = (s)=>String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  function renderWifi(){
+    if(!wifi){ return; }
+    const conn = !!wifi.connected;
+    $('wifiDot').classList.toggle('on', conn);
+    $('wifiCurSsid').textContent = conn ? (wifi.current || '—') : 'Nicht verbunden';
+    if(conn){
+      const parts=[];
+      if(wifi.ip) parts.push(wifi.ip);
+      if(typeof wifi.rssi==='number' && wifi.rssi!==0) parts.push(wifi.rssi+' dBm');
+      $('wifiCurMeta').textContent = parts.join(' · ') || 'Verbunden';
+    } else {
+      $('wifiCurMeta').textContent = 'Gerät sucht ein bekanntes Netz…';
+    }
+
+    const nl=$('netList'); nl.innerHTML='';
+    const nets = wifi.nets||[];
+    nets.forEach(n=>{
+      const row=document.createElement('div'); row.className='netItem';
+      let badges='';
+      if(n.cur) badges+='<span class="badge cur">verbunden</span>';
+      if(n.source==='primary') badges+='<span class="badge primary">Primär</span>';
+      if(n.source==='builtin') badges+='<span class="badge builtin">fest</span>';
+      const canRemove = (n.source==='saved') && !n.cur;
+      row.innerHTML = `<span class="nssid">${esc(n.ssid)}</span>${badges}`
+        + `<button class="rm-btn" title="Entfernen" ${canRemove?'':'disabled'}>✕</button>`;
+      const btn=row.querySelector('.rm-btn');
+      if(canRemove){
+        btn.onclick=()=>{
+          if(confirm(`Netzwerk „${n.ssid}" wirklich entfernen?`)) sendCmd({action:'removeWifi', ssid:n.ssid});
+        };
+      }
+      nl.appendChild(row);
+    });
+    if(!nets.length) nl.innerHTML='<div class="netItem"><span class="nssid" style="color:var(--muted);font-weight:600">Keine Netzwerke bekannt</span></div>';
+
+    const full = (wifi.savedCount!=null && wifi.maxNets!=null && wifi.savedCount>=wifi.maxNets);
+    $('netAdd').disabled = full;
+    $('netAdd').textContent = full ? `Liste voll (max. ${wifi.maxNets})` : 'Hinzufügen';
+  }
+
+  $('netAdd').onclick = ()=>{
+    const ssid=$('netSsid').value.trim();
+    const pass=$('netPass').value;
+    if(!ssid){ toast('Bitte einen WLAN-Namen eingeben', true); return; }
+    sendCmd({action:'addWifi', ssid, pass});
+    $('netSsid').value=''; $('netPass').value='';
+  };
+
+  // Geräte-PIN (Zustand kommt aus den Settings: pinActive)
+  $('pinSwitch').onclick = ()=>{
+    const active = !$('pinSwitch').classList.contains('on');
+    $('pinSwitch').classList.toggle('on', active);   // optimistisch; Settings bestätigen
+    sendCmd({action:'setPin', active});
+  };
+  $('pinSave').onclick = ()=>{
+    const code=$('pinCode').value.trim();
+    if(!/^\d{4,7}$/.test(code)){ toast('PIN: 4–7 Ziffern', true); return; }
+    const active = $('pinSwitch').classList.contains('on');
+    sendCmd({action:'setPin', code, active});
+    $('pinCode').value='';
+  };
 
   $('songUpload').onclick = async ()=>{
     const f=$('songFile').files[0];

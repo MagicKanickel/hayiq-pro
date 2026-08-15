@@ -44,13 +44,15 @@ let deviceSocket = null;                 // aktuelle Geraeteverbindung (genau ei
 let deviceOnline = false;
 let lastStatus   = null;                 // letzter Status vom Geraet
 let lastSettings = null;                 // letzte Einstellungen vom Geraet
+let lastWifi     = null;                 // letzter WLAN-Zustand vom Geraet
 let lastSeen     = 0;                    // millis des letzten Statuspakets
 const appClients = new Set();            // eingeloggte Browser-Sockets
 
 const VALID_ACTIONS = new Set([
   'start', 'stop', 'pause', 'resume', 'setTarget', 'confirmEnd',
   'getSettings', 'getPower', 'setMaxDur', 'setHoldDur', 'setWeekday',
-  'setMelody', 'setPowerCfg', 'downloadSong'
+  'setMelody', 'setPowerCfg', 'downloadSong',
+  'getWifi', 'addWifi', 'removeWifi', 'setPin'
 ]);
 
 // ── HTTP / Express ──────────────────────────────────────────────────────────
@@ -193,6 +195,11 @@ wssDevice.on('connection', (ws) => {
     } else if (msg.type === 'power') {
       const p = { ...msg }; delete p.type;
       broadcastToApps({ type: 'power', power: p });
+    } else if (msg.type === 'wifi') {
+      lastWifi = { ...msg }; delete lastWifi.type;
+      broadcastToApps({ type: 'wifi', wifi: lastWifi });
+    } else if (msg.type === 'wifiResult') {
+      broadcastToApps({ type: 'wifiResult', ok: !!msg.ok, error: msg.error || null });
     }
   });
 
@@ -215,6 +222,7 @@ wssApp.on('connection', (ws) => {
   // Sofort aktuellen Zustand + Einstellungen schicken.
   ws.send(JSON.stringify({ type: 'state', online: deviceOnline, lastSeen, status: lastStatus }));
   if (lastSettings) ws.send(JSON.stringify({ type: 'settings', settings: lastSettings }));
+  if (lastWifi)     ws.send(JSON.stringify({ type: 'wifi', wifi: lastWifi }));
 
   ws.on('message', (raw) => {
     let msg;
