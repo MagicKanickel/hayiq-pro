@@ -150,7 +150,7 @@
     <div class="card"><div class="k">Laufzeit</div><div class="v tnum" id="elapsed">—</div></div>
     <div class="card"><div class="k">Voraussichtl. Ende</div><div class="v tnum" id="eta">—</div></div>
     <div class="card temp"><div class="k">Zieltemperatur</div><div class="v tnum" id="targetTemp">—</div></div>
-    <div class="card out"><div class="k">Außentemperatur</div><div class="v tnum" id="outsideTemp">—</div></div>
+    <div class="card temp"><div class="k">Wassertemperatur</div><div class="v tnum" id="waterTempCard">—</div></div>
   </div>
 
   <div class="controls">
@@ -180,6 +180,29 @@
     <div class="row">
       <button id="confirmNo">Abbrechen</button>
       <button class="go" id="confirmYes">Ja, starten</button>
+    </div>
+  </div>
+</div>
+
+<!-- Stop-Bestätigung -->
+<div class="modal hidden" id="stopModal">
+  <div class="box">
+    <h3>Bedampfung beenden?</h3>
+    <p>Willst du den laufenden Vorgang wirklich beenden?</p>
+    <div class="row">
+      <button id="stopNo">Abbrechen</button>
+      <button class="go" id="stopYes" style="background:linear-gradient(180deg,#f87171,#dc2626);color:#2a0808">Ja, beenden</button>
+    </div>
+  </div>
+</div>
+
+<!-- Abschluss-Bestätigung (synchron mit dem Gerät) -->
+<div class="modal hidden" id="endModal">
+  <div class="box">
+    <h3>Bedampfung abgeschlossen</h3>
+    <p id="endSummary">—</p>
+    <div class="row">
+      <button class="go" id="endOk" style="flex:1">Bestätigen</button>
     </div>
   </div>
 </div>
@@ -281,12 +304,22 @@
     // Werte
     $('waterTemp').textContent = st ? (st.waterTemp<=-100||st.waterTemp==null ? '—' : st.waterTemp.toFixed(1).replace('.',',')) : '—';
     $('targetTemp').textContent = st ? fmtTemp(st.targetTemp) : '—';
-    $('outsideTemp').textContent = st ? fmtTemp(st.outsideTemp) : '—';
+    $('waterTempCard').textContent = st ? fmtTemp(st.waterTemp) : '—';
     $('elapsed').textContent = st ? fmtDur(st.elapsedSec) : '—';
     $('eta').textContent = running && st ? fmtEta(st.etaUnix) : '—';
     $('targetEdit').textContent = st ? fmtTemp(st.targetTemp) : '—';
     $('heroSub').textContent = !online ? 'Gerät offline' :
         running ? (paused ? 'Vorgang pausiert' : 'Bedampfung läuft') : 'Bereit zum Start';
+
+    // Abschluss-Dialog – synchron mit dem Gerät (endPending aus dem Status)
+    const endM = $('endModal');
+    if (st && st.endPending){
+      $('endSummary').innerHTML =
+        `Laufzeit <b>${fmtDur(st.endElapsedSec)}</b><br>Max. Temperatur <b>${fmtTemp(st.endMaxTemp)}</b><br>End-Temperatur <b>${fmtTemp(st.endFinalTemp)}</b>`;
+      endM.classList.remove('hidden');
+    } else {
+      endM.classList.add('hidden');
+    }
 
     // Buttons
     const en = online;
@@ -306,11 +339,14 @@
   // ── Steuer-Aktionen ──
   $('startStopBtn').addEventListener('click', () => {
     const running = !!(st && st.running);
-    if (running){ send('stop'); }
-    else { $('confirmModal').classList.remove('hidden'); }   // Start nur mit Bestätigung
+    if (running){ $('stopModal').classList.remove('hidden'); }   // Stop nur mit Bestätigung
+    else { $('confirmModal').classList.remove('hidden'); }       // Start nur mit Bestätigung
   });
   $('confirmNo').addEventListener('click', () => $('confirmModal').classList.add('hidden'));
   $('confirmYes').addEventListener('click', () => { $('confirmModal').classList.add('hidden'); send('start'); });
+  $('stopNo').addEventListener('click', () => $('stopModal').classList.add('hidden'));
+  $('stopYes').addEventListener('click', () => { $('stopModal').classList.add('hidden'); send('stop'); });
+  $('endOk').addEventListener('click', () => { $('endModal').classList.add('hidden'); send('confirmEnd'); });
   $('pauseBtn').addEventListener('click', () => send('pause'));
   $('resumeBtn').addEventListener('click', () => send('resume'));
 

@@ -44,7 +44,7 @@ let lastStatus   = null;                 // letzter Status vom Geraet
 let lastSeen     = 0;                    // millis des letzten Statuspakets
 const appClients = new Set();            // eingeloggte Browser-Sockets
 
-const VALID_ACTIONS = new Set(['start', 'stop', 'pause', 'resume', 'setTarget']);
+const VALID_ACTIONS = new Set(['start', 'stop', 'pause', 'resume', 'setTarget', 'confirmEnd']);
 
 // ── HTTP / Express ──────────────────────────────────────────────────────────
 const app = express();
