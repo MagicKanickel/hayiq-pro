@@ -1,0 +1,20 @@
+{
+  "name": "heubedampfer-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Relay + Web-App fuer die Heubedampfer-Fernsteuerung (Geraet <-> Server <-> Browser)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "sim": "node sim-device.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b111c">
+<title>Heubedampfer</title>
+<style>
+  :root{
+    --bg:#0b111c; --bar:#121b2a; --tile:#1a2536; --tile2:#131d2c; --line:#293a52;
+    --txt:#eaf1f9; --muted:#8a9cb3; --muted2:#647890;
+    --accent:#10b981; --accentDim:rgba(16,185,129,.14);
+    --danger:#ef4444; --warn:#f59e0b; --info:#38bdf8; --rose:#fb7185;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0; height:100%}
+  body{
+    background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .tnum{font-variant-numeric:tabular-nums}
+  .hidden{display:none !important}
+  button{font-family:inherit; cursor:pointer}
+
+  /* ── Login ── */
+  .login{min-height:100%; display:grid; place-items:center; padding:24px}
+  .login form{width:100%; max-width:360px; background:linear-gradient(180deg,var(--tile),var(--tile2));
+    border:1px solid var(--line); border-radius:18px; padding:26px}
+  .brand{display:flex; align-items:center; gap:10px; margin-bottom:6px}
+  .brand .dot{width:11px; height:11px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent)}
+  .brand h1{font-size:20px; margin:0; letter-spacing:.02em}
+  .login p{color:var(--muted); font-size:14px; margin:2px 0 20px}
+  label{display:block; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700; margin:14px 0 6px}
+  input{width:100%; background:#0e1826; border:1px solid var(--line); border-radius:10px; color:var(--txt);
+    font-size:16px; padding:12px 14px; outline:none}
+  input:focus{border-color:var(--accent)}
+  .login button{width:100%; margin-top:20px; background:linear-gradient(180deg,#34d399,#059669); color:#052015;
+    border:0; border-radius:12px; padding:14px; font-size:16px; font-weight:800; letter-spacing:.02em}
+  .err{color:#fda4af; font-size:14px; margin-top:12px; min-height:18px}
+
+  /* ── App ── */
+  .app{max-width:720px; margin:0 auto; padding:16px 16px 40px; min-height:100%}
+  .topbar{display:flex; align-items:center; gap:12px; padding:8px 4px 16px}
+  .topbar .dot{width:10px; height:10px; border-radius:50%; background:var(--muted2)}
+  .topbar .dot.on{background:var(--accent); box-shadow:0 0 10px var(--accent)}
+  .topbar h1{font-size:19px; margin:0; letter-spacing:.03em; font-weight:800}
+  .topbar .state{font-size:13px; color:var(--muted); font-weight:600}
+  .topbar .sp{margin-left:auto}
+  .ghost{background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:9px; padding:8px 12px; font-size:13px; font-weight:600}
+  .ghost:hover{color:var(--txt); border-color:#3a4d68}
+
+  .offline-banner{background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.4); color:#fcd34d;
+    border-radius:12px; padding:12px 14px; font-size:14px; font-weight:600; margin-bottom:14px; display:flex; gap:8px; align-items:center}
+
+  .hero{background:linear-gradient(180deg,var(--tile),var(--tile2)); border:1px solid var(--line);
+    border-radius:18px; padding:20px; margin-bottom:14px}
+  .hero .k{font-size:12px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .pill{display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:800; letter-spacing:.06em;
+    text-transform:uppercase; padding:5px 11px; border-radius:999px; background:#212d3f; color:var(--muted)}
+  .pill .d{width:8px; height:8px; border-radius:50%; background:currentColor}
+  .pill.run{background:var(--accentDim); color:#5eead4}
+  .pill.pause{background:rgba(245,158,11,.15); color:#fcd34d}
+  .heroRow{display:flex; align-items:baseline; justify-content:space-between; gap:12px}
+  .big{font-size:54px; font-weight:800; line-height:1; margin-top:8px}
+  .big .u{font-size:22px; color:var(--muted)}
+  .heroSub{color:var(--muted); font-size:14px; margin-top:8px}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px}
+  .card{background:linear-gradient(180deg,var(--tile),var(--tile2)); border:1px solid var(--line); border-radius:14px; padding:14px 16px}
+  .card .k{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .card .v{font-size:26px; font-weight:800; margin-top:4px}
+  .card.temp .v{color:var(--rose)} .card.out .v{color:var(--info)}
+
+  .controls{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .btn{border:1px solid var(--line); border-radius:14px; padding:18px; font-size:18px; font-weight:800; letter-spacing:.02em;
+    color:var(--txt); background:linear-gradient(180deg,var(--tile),var(--tile2)); display:flex; align-items:center; justify-content:center; gap:10px}
+  .btn:disabled{opacity:.4; cursor:not-allowed}
+  .btn.start{background:linear-gradient(180deg,#34d399,#059669); color:#052015; border:0}
+  .btn.stop{background:linear-gradient(180deg,#f87171,#dc2626); color:#2a0808; border:0}
+  .btn.wide{grid-column:1 / -1}
+  .btn svg{width:22px; height:22px}
+
+  .target{grid-column:1 / -1; background:linear-gradient(180deg,var(--tile),var(--tile2)); border:1px solid var(--line);
+    border-radius:14px; padding:14px 16px; display:flex; align-items:center; gap:14px}
+  .target .k{font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700}
+  .target .v{font-size:24px; font-weight:800; margin-top:2px}
+  .target .sp{margin-left:auto; display:flex; gap:10px}
+  .step{width:52px; height:52px; border-radius:14px; border:1px solid var(--line); background:#0e1826; color:var(--txt);
+    font-size:28px; font-weight:800; display:grid; place-items:center}
+  .step:hover{background:#26364c}
+  .step.plus{color:var(--accent)} .step.minus{color:var(--rose)}
+
+  .toast{position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(20px); opacity:0;
+    background:#1a2536; border:1px solid var(--line); color:var(--txt); padding:11px 16px; border-radius:12px;
+    font-size:14px; font-weight:600; transition:.25s; pointer-events:none; z-index:20}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  .toast.err{border-color:rgba(239,68,68,.5); color:#fda4af}
+
+  /* Modal */
+  .modal{position:fixed; inset:0; background:rgba(4,8,14,.66); display:grid; place-items:center; padding:24px; z-index:30}
+  .modal .box{width:100%; max-width:360px; background:var(--tile); border:1px solid var(--line); border-radius:16px; padding:22px}
+  .modal h3{margin:0 0 6px; font-size:19px}
+  .modal p{margin:0 0 18px; color:var(--muted); font-size:14.5px}
+  .modal .row{display:flex; gap:10px}
+  .modal .row button{flex:1; padding:13px; border-radius:11px; font-size:15px; font-weight:800; border:1px solid var(--line); background:transparent; color:var(--txt)}
+  .modal .row button.go{background:linear-gradient(180deg,#34d399,#059669); color:#052015; border:0}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="loginView">
+  <form id="loginForm" autocomplete="on">
+    <div class="brand"><span class="dot"></span><h1>Heubedampfer</h1></div>
+    <p>Fernsteuerung — bitte anmelden.</p>
+    <label for="u">Benutzer</label>
+    <input id="u" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="p">Passwort</label>
+    <input id="p" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit" id="loginBtn">Anmelden</button>
+    <div class="err" id="loginErr"></div>
+  </form>
+</div>
+
+<!-- APP -->
+<div class="app hidden" id="appView">
+  <div class="topbar">
+    <span class="dot" id="connDot"></span>
+    <h1>Heubedampfer</h1>
+    <span class="state" id="connState">verbinde…</span>
+    <span class="sp"></span>
+    <button class="ghost" id="logoutBtn">Abmelden</button>
+  </div>
+
+  <div class="offline-banner hidden" id="offlineBanner">
+    <span>⚠</span><span>Gerät ist offline — Steuerung nicht möglich.</span>
+  </div>
+
+  <div class="hero">
+    <div class="heroRow">
+      <span class="k">Wassertemperatur</span>
+      <span class="pill" id="statePill"><span class="d"></span><span id="statePillTxt">—</span></span>
+    </div>
+    <div class="big tnum"><span id="waterTemp">—</span><span class="u"> °C</span></div>
+    <div class="heroSub" id="heroSub">Warte auf Daten…</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="k">Laufzeit</div><div class="v tnum" id="elapsed">—</div></div>
+    <div class="card"><div class="k">Voraussichtl. Ende</div><div class="v tnum" id="eta">—</div></div>
+    <div class="card temp"><div class="k">Zieltemperatur</div><div class="v tnum" id="targetTemp">—</div></div>
+    <div class="card out"><div class="k">Außentemperatur</div><div class="v tnum" id="outsideTemp">—</div></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn start wide" id="startStopBtn" disabled>—</button>
+    <button class="btn" id="pauseBtn" disabled>Pause</button>
+    <button class="btn" id="resumeBtn" disabled>Weiter</button>
+    <div class="target">
+      <div>
+        <div class="k">Zieltemperatur</div>
+        <div class="v tnum" id="targetEdit">—</div>
+      </div>
+      <div class="sp">
+        <button class="step minus" id="tMinus" disabled>−</button>
+        <button class="step plus" id="tPlus" disabled>+</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Start-Bestätigung -->
+<div class="modal hidden" id="confirmModal">
+  <div class="box">
+    <h3>Bedampfung starten?</h3>
+    <p>Das Gerät beginnt zu heizen. Stell sicher, dass alles bereit ist und niemand gefährdet wird.</p>
+    <div class="row">
+      <button id="confirmNo">Abbrechen</button>
+      <button class="go" id="confirmYes">Ja, starten</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const loginView = $('loginView'), appView = $('appView');
+
+  // ── Login ──
+  async function checkAuth(){
+    try{
+      const r = await fetch('/api/me'); const j = await r.json();
+      if (j.loggedIn){ showApp(); } else { showLogin(); }
+    }catch{ showLogin(); }
+  }
+  function showLogin(){ loginView.classList.remove('hidden'); appView.classList.add('hidden'); }
+  function showApp(){ loginView.classList.add('hidden'); appView.classList.remove('hidden'); connect(); }
+
+  $('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('loginErr').textContent = '';
+    $('loginBtn').disabled = true;
+    try{
+      const r = await fetch('/api/login', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ user: $('u').value, pass: $('p').value })
+      });
+      const j = await r.json();
+      if (r.ok && j.ok){ $('p').value=''; showApp(); }
+      else { $('loginErr').textContent = j.error || 'Anmeldung fehlgeschlagen'; }
+    }catch{ $('loginErr').textContent = 'Verbindungsfehler'; }
+    finally{ $('loginBtn').disabled = false; }
+  });
+
+  $('logoutBtn').addEventListener('click', async () => {
+    try{ await fetch('/api/logout', {method:'POST'}); }catch{}
+    if (ws){ ws.close(); ws = null; }
+    showLogin();
+  });
+
+  // ── WebSocket zum Server ──
+  let ws = null, reconnectT = null, online = false, st = null;
+  function connect(){
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/app`);
+    ws.onopen  = () => { setConn(true); };
+    ws.onclose = () => { setConn(false); scheduleReconnect(); };
+    ws.onerror = () => { try{ ws.close(); }catch{} };
+    ws.onmessage = (ev) => {
+      let m; try{ m = JSON.parse(ev.data); }catch{ return; }
+      if (m.type === 'state'){ online = m.online; st = m.status; render(); }
+      else if (m.type === 'cmdResult'){
+        if (m.ok) toast('Befehl gesendet');
+        else toast(m.error || 'Befehl abgelehnt', true);
+      }
+    };
+  }
+  function scheduleReconnect(){
+    if (reconnectT) return;
+    reconnectT = setTimeout(() => { reconnectT = null; if (!appView.classList.contains('hidden')) connect(); }, 2500);
+  }
+  function setConn(ok){
+    $('connDot').classList.toggle('on', ok);
+    $('connState').textContent = ok ? 'verbunden' : 'getrennt';
+    if (!ok){ online = false; render(); }
+  }
+  function send(action, value){
+    if (!ws || ws.readyState !== WebSocket.OPEN){ toast('Keine Verbindung', true); return; }
+    const m = { type:'cmd', action };
+    if (value !== undefined) m.value = value;
+    ws.send(JSON.stringify(m));
+  }
+
+  // ── Rendering ──
+  function fmtTemp(x){ return (x===undefined||x===null||x<=-100) ? '—' : x.toFixed(1).replace('.',',') + ' °C'; }
+  function fmtDur(s){ if(s===undefined||s===null) return '—'; s=Math.max(0,s|0);
+    const h=(s/3600|0), m=((s%3600)/60|0), ss=s%60; const p=n=>String(n).padStart(2,'0');
+    return `${p(h)}:${p(m)}:${p(ss)}`; }
+  function fmtEta(u){ if(!u) return '—'; const d=new Date(u*1000);
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} Uhr`; }
+
+  function render(){
+    const offBanner = $('offlineBanner');
+    offBanner.classList.toggle('hidden', online);
+
+    const running = !!(st && st.running);
+    const paused  = !!(st && st.paused);
+
+    // Status-Pill
+    const pill = $('statePill'), pt = $('statePillTxt');
+    pill.classList.remove('run','pause');
+    if (!online){ pt.textContent='OFFLINE'; }
+    else if (running && paused){ pill.classList.add('pause'); pt.textContent='PAUSE'; }
+    else if (running){ pill.classList.add('run'); pt.textContent='LÄUFT'; }
+    else { pt.textContent='BEREIT'; }
+
+    // Werte
+    $('waterTemp').textContent = st ? (st.waterTemp<=-100||st.waterTemp==null ? '—' : st.waterTemp.toFixed(1).replace('.',',')) : '—';
+    $('targetTemp').textContent = st ? fmtTemp(st.targetTemp) : '—';
+    $('outsideTemp').textContent = st ? fmtTemp(st.outsideTemp) : '—';
+    $('elapsed').textContent = st ? fmtDur(st.elapsedSec) : '—';
+    $('eta').textContent = running && st ? fmtEta(st.etaUnix) : '—';
+    $('targetEdit').textContent = st ? fmtTemp(st.targetTemp) : '—';
+    $('heroSub').textContent = !online ? 'Gerät offline' :
+        running ? (paused ? 'Vorgang pausiert' : 'Bedampfung läuft') : 'Bereit zum Start';
+
+    // Buttons
+    const en = online;
+    const ssb = $('startStopBtn');
+    ssb.disabled = !en;
+    ssb.classList.toggle('stop', running);
+    ssb.classList.toggle('start', !running);
+    ssb.innerHTML = running
+      ? '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> STOP'
+      : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> START';
+    $('pauseBtn').disabled  = !en || !running || paused;
+    $('resumeBtn').disabled = !en || !running || !paused;
+    $('tPlus').disabled  = !en;
+    $('tMinus').disabled = !en;
+  }
+
+  // ── Steuer-Aktionen ──
+  $('startStopBtn').addEventListener('click', () => {
+    const running = !!(st && st.running);
+    if (running){ send('stop'); }
+    else { $('confirmModal').classList.remove('hidden'); }   // Start nur mit Bestätigung
+  });
+  $('confirmNo').addEventListener('click', () => $('confirmModal').classList.add('hidden'));
+  $('confirmYes').addEventListener('click', () => { $('confirmModal').classList.add('hidden'); send('start'); });
+  $('pauseBtn').addEventListener('click', () => send('pause'));
+  $('resumeBtn').addEventListener('click', () => send('resume'));
+
+  function curTarget(){ return (st && typeof st.targetTemp === 'number') ? st.targetTemp : 60; }
+  $('tPlus').addEventListener('click', () => send('setTarget', Math.min(99, Math.round((curTarget()+0.5)*100)/100)));
+  $('tMinus').addEventListener('click', () => send('setTarget', Math.max(0, Math.round((curTarget()-0.5)*100)/100)));
+
+  // ── Toast ──
+  let toastT = null;
+  function toast(msg, isErr){
+    const t = $('toast'); t.textContent = msg;
+    t.classList.toggle('err', !!isErr); t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  render();
+  checkAuth();
+})();
+</script>
+</body>
+</html>
