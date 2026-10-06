@@ -186,6 +186,8 @@
   .danger-btn{background:transparent; border:1px solid rgba(239,68,68,.55); color:#fca5a5; border-radius:10px;
     padding:11px 18px; font-size:14px; font-weight:700; width:100%}
   .danger-btn:active{background:rgba(239,68,68,.12)}
+  .fwProg{height:10px; background:#0e1826; border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:12px 2px 4px}
+  .fwBar{height:100%; width:0; background:linear-gradient(90deg,#34d399,#059669); transition:width .3s}
   .statRow{display:flex; gap:10px; padding:10px 0}
   .stat{flex:1; text-align:center}
   .stat .sk{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700}
@@ -392,6 +394,24 @@
       </div>
     </div>
   </div>
+
+  <div class="sec">
+    <div class="secHead">Firmware aktualisieren</div>
+    <div class="hintBox">
+      <span class="ico">💡</span>
+      <span>Spiel nur eine Firmware auf, die du vorher auf dem <b>baugleichen Test-Display</b> geprüft hast.
+      Das Gerät installiert sie und <b>startet neu</b> — es ist dabei ca. 1&nbsp;Minute nicht erreichbar.
+      Ein unvollständiger Download ist ungefährlich (das Gerät bleibt dann auf der alten Version).</span>
+    </div>
+    <div class="card2">
+      <div class="uploadRow">
+        <input type="file" id="fwFile" accept=".bin">
+        <button class="up-btn" id="fwUpload">Hochladen &amp; Aufspielen</button>
+      </div>
+      <div class="fwProg hidden" id="fwProgWrap"><div class="fwBar" id="fwBar"></div></div>
+      <div class="upStatus" id="fwStatus"></div>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -486,6 +506,16 @@
       else if (m.type === 'wifiResult'){
         if (m.ok) toast('Gespeichert');
         else toast(m.error || 'Abgelehnt', true);
+      }
+      else if (m.type === 'otaProgress'){
+        const w=$('fwProgWrap'); if(w){ w.classList.remove('hidden'); $('fwBar').style.width=(m.pct||0)+'%'; }
+        if($('fwStatus')) $('fwStatus').textContent='Update läuft… '+(m.pct||0)+'%';
+      }
+      else if (m.type === 'otaResult'){
+        if(m.ok){ if($('fwBar')) $('fwBar').style.width='100%';
+          if($('fwStatus')) $('fwStatus').textContent='✓ Erfolgreich – Gerät startet neu und kommt gleich wieder online.'; }
+        else { if($('fwStatus')) $('fwStatus').textContent='✗ Fehlgeschlagen: '+(m.error||'unbekannt')+' – Gerät läuft auf der alten Firmware weiter.'; }
+        const b=$('fwUpload'); if(b) b.disabled=false;
       }
       else if (m.type === 'cmdResult'){
         if (m.ok) toast('Befehl gesendet');
@@ -762,6 +792,32 @@
   $('clearPowerBtn').onclick = ()=>{
     if(confirm('Alle Stromaufzeichnungen wirklich löschen? Das kann nicht rückgängig gemacht werden.'))
       sendCmd({action:'clearPower'});
+  };
+
+  // ── Firmware aktualisieren (Remote-OTA) ──
+  $('fwUpload').onclick = async ()=>{
+    const f=$('fwFile').files[0];
+    if(!f){ $('fwStatus').textContent='Bitte zuerst eine .bin-Datei wählen.'; return; }
+    if(!/\.bin$/i.test(f.name)){ $('fwStatus').textContent='Nur .bin-Dateien erlaubt.'; return; }
+    $('fwUpload').disabled=true; $('fwProgWrap').classList.add('hidden'); $('fwBar').style.width='0%';
+    $('fwStatus').textContent='Lade Firmware auf den Server…';
+    let url;
+    try{
+      const fd=new FormData(); fd.append('firmware', f);
+      const r=await fetch('/api/upload-firmware',{method:'POST',body:fd});
+      const j=await r.json();
+      if(!r.ok||!j.ok){ $('fwStatus').textContent=j.error||'Upload fehlgeschlagen'; $('fwUpload').disabled=false; return; }
+      url=j.url;
+    }catch{ $('fwStatus').textContent='Verbindungsfehler beim Upload.'; $('fwUpload').disabled=false; return; }
+    // Sicherheitsabfrage NACH dem Hochladen
+    if(!confirm('Firmware jetzt aufspielen? Das Gerät installiert sie und startet neu – es ist dabei ca. 1 Minute nicht erreichbar.')){
+      $('fwStatus').textContent='Abgebrochen. (Die Datei liegt bereit – du kannst es später erneut starten.)';
+      $('fwUpload').disabled=false; return;
+    }
+    $('fwStatus').textContent='Update gestartet – übertrage an das Gerät…';
+    $('fwProgWrap').classList.remove('hidden');
+    sendCmd({action:'otaUpdate', url});
+    $('fwFile').value='';
   };
 
   $('maxSave').onclick  = ()=>sendCmd({action:'setMaxDur',  h:nz($('maxH').value),  m:nz($('maxM').value),  s:nz($('maxS').value)});

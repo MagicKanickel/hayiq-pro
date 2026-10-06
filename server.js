@@ -52,7 +52,7 @@ const VALID_ACTIONS = new Set([
   'start', 'stop', 'pause', 'resume', 'setTarget', 'confirmEnd',
   'getSettings', 'getPower', 'setMaxDur', 'setHoldDur', 'setWeekday',
   'setMelody', 'setPowerCfg', 'downloadSong', 'clearPower',
-  'getWifi', 'addWifi', 'removeWifi', 'setPin'
+  'getWifi', 'addWifi', 'removeWifi', 'setPin', 'otaUpdate'
 ]);
 
 // ── HTTP / Express ──────────────────────────────────────────────────────────
@@ -119,6 +119,33 @@ app.post('/api/upload-song', requireAuth, upload.single('song'), (req, res) => {
 
 // Uploads oeffentlich servieren, damit das Geraet sie per HTTPS herunterladen kann.
 app.use('/uploads', express.static(uploadsDir, { maxAge: '10m' }));
+
+// ── Firmware-Upload (Remote-OTA): .bin annehmen, oeffentliche URL zurueckgeben ──
+const firmwareDir = path.join(__dirname, 'firmware');
+fs.mkdirSync(firmwareDir, { recursive: true });
+const fwUpload = multer({ dest: firmwareDir, limits: { fileSize: 6 * 1024 * 1024 } });
+
+app.post('/api/upload-firmware', requireAuth, fwUpload.single('firmware'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Keine Datei erhalten' });
+  const orig = req.file.originalname || 'firmware.bin';
+  if (!/\.bin$/i.test(orig)) {
+    try { fs.unlinkSync(req.file.path); } catch {}
+    return res.status(400).json({ error: 'Nur .bin-Dateien erlaubt' });
+  }
+  const stored = Date.now().toString(36) + '.bin';
+  fs.renameSync(req.file.path, path.join(firmwareDir, stored));
+  // Nur die neueste Firmware behalten (alte .bin aufraeumen)
+  try {
+    for (const f of fs.readdirSync(firmwareDir)) {
+      if (f !== stored) fs.unlinkSync(path.join(firmwareDir, f));
+    }
+  } catch {}
+  const base = req.protocol + '://' + req.get('host');
+  res.json({ ok: true, url: base + '/firmware/' + stored, size: req.file.size });
+});
+
+// Firmware oeffentlich servieren, damit das Geraet sie per HTTPS laden kann.
+app.use('/firmware', express.static(firmwareDir, { maxAge: '5m' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -200,6 +227,10 @@ wssDevice.on('connection', (ws) => {
       broadcastToApps({ type: 'wifi', wifi: lastWifi });
     } else if (msg.type === 'wifiResult') {
       broadcastToApps({ type: 'wifiResult', ok: !!msg.ok, error: msg.error || null });
+    } else if (msg.type === 'otaProgress') {
+      broadcastToApps({ type: 'otaProgress', pct: msg.pct });
+    } else if (msg.type === 'otaResult') {
+      broadcastToApps({ type: 'otaResult', ok: !!msg.ok, error: msg.error || null });
     }
   });
 
