@@ -51,7 +51,7 @@ const appClients = new Set();            // eingeloggte Browser-Sockets
 const VALID_ACTIONS = new Set([
   'start', 'stop', 'pause', 'resume', 'setTarget', 'confirmEnd',
   'getSettings', 'getPower', 'setMaxDur', 'setHoldDur', 'setWeekday',
-  'setMelody', 'setPowerCfg', 'downloadSong',
+  'setMelody', 'setPowerCfg', 'downloadSong', 'clearPower',
   'getWifi', 'addWifi', 'removeWifi', 'setPin'
 ]);
 

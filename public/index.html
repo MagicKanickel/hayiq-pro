@@ -161,6 +161,31 @@
   .addForm input{font-size:15px; padding:10px 12px}
   .addForm .up-btn{align-self:flex-start; margin-top:2px}
   .pinRow input{width:120px}
+
+  /* ── Einklappbare Bereiche + Stromkosten-Diagramm ── */
+  .coll{margin:4px 2px 0}
+  .coll>summary{list-style:none; cursor:pointer; display:flex; align-items:center; justify-content:space-between;
+    font-size:12px; letter-spacing:.13em; text-transform:uppercase; color:var(--accent); font-weight:800;
+    padding:10px 2px 8px; user-select:none}
+  .coll>summary::-webkit-details-marker{display:none}
+  .coll>summary .chev{transition:transform .2s; color:var(--muted); font-size:14px}
+  .coll[open]>summary .chev{transform:rotate(180deg)}
+  .segRow{display:flex; gap:6px; padding:12px 2px; flex-wrap:wrap}
+  .seg{flex:1 1 auto; min-width:64px; background:#0e1826; border:1px solid var(--line); color:var(--muted);
+    border-radius:9px; padding:9px 6px; font-size:13px; font-weight:700}
+  .seg.active{background:var(--accentDim); border-color:rgba(16,185,129,.5); color:var(--accent)}
+  .chartWrap{position:relative; padding:6px 2px 2px}
+  #costChart{width:100%; height:auto; display:block}
+  #costChart .bar{fill:url(#barGrad)}
+  #costChart .barval{fill:var(--txt); font-size:9px; font-weight:700; text-anchor:middle; font-variant-numeric:tabular-nums}
+  #costChart .barlbl{fill:var(--muted); font-size:9px; text-anchor:middle}
+  #costChart .grid{stroke:var(--line); stroke-width:1}
+  #costChart .gridlbl{fill:var(--muted2); font-size:8px; text-anchor:end; font-variant-numeric:tabular-nums}
+  .chartEmpty{color:var(--muted); font-size:14px; text-align:center; padding:28px 0}
+  .clearCard{display:flex; justify-content:center}
+  .danger-btn{background:transparent; border:1px solid rgba(239,68,68,.55); color:#fca5a5; border-radius:10px;
+    padding:11px 18px; font-size:14px; font-weight:700; width:100%}
+  .danger-btn:active{background:rgba(239,68,68,.12)}
   .statRow{display:flex; gap:10px; padding:10px 0}
   .stat{flex:1; text-align:center}
   .stat .sk{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700}
@@ -294,8 +319,30 @@
         <div class="durEdit"><input type="number" id="pPrice" min="0" max="9999" style="width:80px"><button class="mini-btn" id="pPriceSave">✓</button></div>
       </div>
     </div>
-    <div class="secHead sub">Letzte Sitzungen</div>
-    <div class="card2 logList" id="powerLog"></div>
+    <details class="coll" id="statDetails" open>
+      <summary><span>Statistik — Stromkosten</span><span class="chev">▾</span></summary>
+      <div class="card2">
+        <div class="segRow" id="statRange">
+          <button type="button" class="seg active" data-range="week">Woche</button>
+          <button type="button" class="seg" data-range="month">Monat</button>
+          <button type="button" class="seg" data-range="year">Jahr</button>
+          <button type="button" class="seg" data-range="session">Vorgang</button>
+        </div>
+        <div class="chartWrap">
+          <svg id="costChart" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Stromkosten je Zeitraum"></svg>
+          <div class="chartEmpty hidden" id="chartEmpty">Noch keine Aufzeichnungen</div>
+        </div>
+      </div>
+    </details>
+
+    <details class="coll" id="logDetails">
+      <summary><span>Letzte Sitzungen</span><span class="chev">▾</span></summary>
+      <div class="card2 logList" id="powerLog"></div>
+    </details>
+
+    <div class="card2 clearCard">
+      <button type="button" class="danger-btn" id="clearPowerBtn">Aufzeichnungen löschen</button>
+    </div>
   </div>
 
   <div class="sec">
@@ -611,6 +658,7 @@
 
   function renderPower(p){
     if(!p) return;
+    powerData = p;
     $('pSessions').textContent = (p.sessions!=null? p.sessions : '—');
     $('pKwh').textContent = (p.kwh!=null? p.kwh.toFixed(1).replace('.',',')+' kWh':'—');
     $('pEur').textContent = (p.eur!=null? p.eur.toFixed(2).replace('.',',')+' €':'—');
@@ -623,7 +671,98 @@
       log.appendChild(it);
     });
     if(!(p.log||[]).length) log.innerHTML='<div class="l-item"><span class="meta">Noch keine Sitzungen</span></div>';
+    renderChart();
   }
+
+  // ── Stromkosten-Diagramm ──
+  const MONTHS=['Jän','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+  let powerData = null;
+  let statRange = 'week';
+
+  function isoWeek(d){
+    const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+    const day=(x.getUTCDay()+6)%7; x.setUTCDate(x.getUTCDate()-day+3);
+    const firstThu=new Date(Date.UTC(x.getUTCFullYear(),0,4));
+    const fday=(firstThu.getUTCDay()+6)%7; firstThu.setUTCDate(firstThu.getUTCDate()-fday+3);
+    const w=1+Math.round((x-firstThu)/(7*864e5));
+    return {y:x.getUTCFullYear(), w};
+  }
+  const eur2=(v)=>v.toFixed(2).replace('.',',');
+  const eurShort=(v)=> (v>=100? Math.round(v).toString() : v.toFixed(v>=10?1:2).replace('.',','));
+
+  function aggregate(log, range){
+    log = log||[];
+    if(range==='session'){
+      return log.slice(-14).map(e=>{
+        let label='—', sub='';
+        if(e.t){ const d=new Date(e.t*1000);
+          label=`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`;
+          sub=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+        return {label, sub, eur:e.eur||0, kwh:e.kwh||0, count:1};
+      });
+    }
+    const valid=log.filter(e=>e.t && e.t>1000000000);
+    const m=new Map();
+    for(const e of valid){
+      const d=new Date(e.t*1000); let key,label;
+      if(range==='week'){ const {y,w}=isoWeek(d); key=`${y}-${String(w).padStart(2,'0')}`; label='KW'+w; }
+      else if(range==='month'){ key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; label=MONTHS[d.getMonth()]; }
+      else { key=''+d.getFullYear(); label=key; }
+      if(!m.has(key)) m.set(key,{key,label,eur:0,kwh:0,count:0});
+      const b=m.get(key); b.eur+=e.eur||0; b.kwh+=e.kwh||0; b.count++;
+    }
+    const arr=[...m.values()].sort((a,b)=>a.key<b.key?-1:1);
+    const N = range==='week'?10 : range==='month'?12 : 6;
+    return arr.slice(-N);
+  }
+
+  function barPath(x,y,w,h,r){
+    r=Math.max(0,Math.min(r,w/2,h));
+    return `M${x} ${y+h} L${x} ${y+r} Q${x} ${y} ${x+r} ${y} L${x+w-r} ${y} Q${x+w} ${y} ${x+w} ${y+r} L${x+w} ${y+h} Z`;
+  }
+
+  function renderChart(){
+    const svg=$('costChart'), empty=$('chartEmpty');
+    if(!svg) return;
+    const data=aggregate(powerData&&powerData.log, statRange);
+    if(!data.length){ svg.innerHTML=''; svg.style.display='none'; empty.classList.remove('hidden'); return; }
+    svg.style.display=''; empty.classList.add('hidden');
+    const W=320,H=180,padL=30,padR=8,padT=22,padB=24;
+    const plotW=W-padL-padR, plotH=H-padT-padB, base=padT+plotH;
+    const maxV=Math.max(...data.map(d=>d.eur),0.01);
+    // "schöne" Obergrenze fürs Gitter
+    const niceMax=(function(v){const p=Math.pow(10,Math.floor(Math.log10(v)));const n=v/p;
+      const s=n<=1?1:n<=2?2:n<=5?5:10; return s*p;})(maxV);
+    const n=data.length, gap=Math.min(10,plotW/n*0.3), bw=(plotW-gap*(n-1))/n;
+    let defs=`<defs><linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#059669"/></linearGradient></defs>`;
+    let grid='';
+    for(let g=0; g<=2; g++){
+      const val=niceMax*g/2, yy=base-(val/niceMax)*plotH;
+      grid+=`<line class="grid" x1="${padL}" y1="${yy.toFixed(1)}" x2="${W-padR}" y2="${yy.toFixed(1)}" opacity="${g===0?0.9:0.4}"/>`;
+      grid+=`<text class="gridlbl" x="${padL-4}" y="${(yy+3).toFixed(1)}">${eurShort(val)}</text>`;
+    }
+    let bars='';
+    data.forEach((d,i)=>{
+      const x=padL+i*(bw+gap), h=(d.eur/niceMax)*plotH, y=base-h, cx=x+bw/2;
+      const tip=`${d.label}${d.sub?' '+d.sub:''}: ${eur2(d.eur)} € · ${d.kwh.toFixed(2).replace('.',',')} kWh${d.count>1?' · '+d.count+'×':''}`;
+      bars+=`<path class="bar" d="${barPath(x,y,bw,h,4)}"><title>${tip}</title></path>`;
+      if(d.eur>0) bars+=`<text class="barval" x="${cx.toFixed(1)}" y="${(y-4).toFixed(1)}">${eurShort(d.eur)}</text>`;
+      bars+=`<text class="barlbl" x="${cx.toFixed(1)}" y="${H-8}">${d.label}</text>`;
+    });
+    svg.innerHTML=defs+grid+bars;
+  }
+
+  $('statRange').addEventListener('click', (e)=>{
+    const b=e.target.closest('.seg'); if(!b) return;
+    statRange=b.dataset.range;
+    $('statRange').querySelectorAll('.seg').forEach(s=>s.classList.toggle('active', s===b));
+    renderChart();
+  });
+
+  $('clearPowerBtn').onclick = ()=>{
+    if(confirm('Alle Stromaufzeichnungen wirklich löschen? Das kann nicht rückgängig gemacht werden.'))
+      sendCmd({action:'clearPower'});
+  };
 
   $('maxSave').onclick  = ()=>sendCmd({action:'setMaxDur',  h:nz($('maxH').value),  m:nz($('maxM').value),  s:nz($('maxS').value)});
   $('holdSave').onclick = ()=>sendCmd({action:'setHoldDur', h:nz($('holdH').value), m:nz($('holdM').value), s:nz($('holdS').value)});
