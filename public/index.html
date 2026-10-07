@@ -188,6 +188,16 @@
   .danger-btn:active{background:rgba(239,68,68,.12)}
   .fwProg{height:10px; background:#0e1826; border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:12px 2px 4px}
   .fwBar{height:100%; width:0; background:linear-gradient(90deg,#34d399,#059669); transition:width .3s}
+  .recvRow{display:flex; padding:10px 2px 4px}
+  .recvList{display:flex; flex-direction:column; gap:8px; padding:4px 2px 0}
+  .recvList:empty{display:none}
+  .chatItem{display:flex; align-items:center; gap:10px; background:#0e1826; border:1px solid var(--line); border-radius:10px; padding:10px 12px}
+  .chatItem.cur{border-color:rgba(16,185,129,.5); background:var(--accentDim)}
+  .chatItem .ci{flex:1; min-width:0}
+  .chatItem .cn{font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .chatItem .cid{color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums}
+  .chatItem .pick{background:var(--accent); color:#052015; border:0; border-radius:8px; padding:7px 12px; font-size:13px; font-weight:800; white-space:nowrap}
+  .chatItem .pick:disabled{background:#22304a; color:var(--muted)}
   .statRow{display:flex; gap:10px; padding:10px 0}
   .stat{flex:1; text-align:center}
   .stat .sk{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700}
@@ -404,6 +414,17 @@
       <div class="row2"><span class="lbl">Start / Stopp</span><span class="sw2" id="nf_startstop"></span></div>
       <div class="row2"><span class="lbl">Zieltemperatur erreicht</span><span class="sw2" id="nf_target"></span></div>
     </div>
+
+    <div class="secHead sub">Empfänger</div>
+    <div class="card2">
+      <div class="row2"><span class="lbl">Aktuelles Ziel</span><span class="meta" id="nfTarget">—</span></div>
+      <div class="recvRow">
+        <button type="button" class="up-btn" id="nfFindChats">Empfänger / Gruppe wählen</button>
+      </div>
+      <div class="recvList" id="nfChatList"></div>
+      <div class="upStatus" id="nfRecvStatus"></div>
+    </div>
+
     <div class="card2 clearCard">
       <button type="button" class="up-btn" id="notifyTest">Testnachricht senden</button>
     </div>
@@ -843,7 +864,11 @@
       const hint=$('notifyHint');
       if(hint) hint.innerHTML = j.configured
         ? '<span class="ico">🔔</span><span>Telegram ist verbunden. Wähle, welche Ereignisse du aufs Handy bekommst.</span>'
-        : '<span class="ico">⚠️</span><span>Telegram ist noch <b>nicht eingerichtet</b>. Leg in Coolify <b>TELEGRAM_BOT_TOKEN</b> und <b>TELEGRAM_CHAT_ID</b> an und starte neu – dann kommen die Push-Nachrichten.</span>';
+        : (j.hasToken
+          ? '<span class="ico">⚠️</span><span>Bot-Token da, aber <b>kein Empfänger</b> gesetzt. Unten „Empfänger / Gruppe wählen".</span>'
+          : '<span class="ico">⚠️</span><span>Telegram noch <b>nicht eingerichtet</b>. Leg in Coolify <b>TELEGRAM_BOT_TOKEN</b> an (und ggf. TELEGRAM_CHAT_ID) und starte neu.</span>');
+      const t=$('nfTarget');
+      if(t) t.textContent = j.target ? (j.target + (j.targetSource==='app'?' (in App gewählt)':' (Standard)')) : 'keiner';
     }catch{}
   }
   function saveNotify(){
@@ -858,6 +883,43 @@
       if(j.ok) toast('Testnachricht gesendet'); else toast(j.error||'Senden fehlgeschlagen', true);
     }catch{ toast('Verbindungsfehler', true); }
     finally{ $('notifyTest').disabled=false; }
+  };
+
+  function renderChatList(chats, current){
+    const el=$('nfChatList'); el.innerHTML='';
+    if(!chats||!chats.length){
+      $('nfRecvStatus').textContent='Keine Chats gefunden. Schreib dem Bot (oder in der Gruppe) „/start@deinbot" und versuch es nochmal.';
+      return;
+    }
+    $('nfRecvStatus').textContent='';
+    const typeLbl={group:'Gruppe', supergroup:'Gruppe', private:'Privat', channel:'Kanal'};
+    chats.forEach(c=>{
+      const cur = String(c.id)===String(current);
+      const row=document.createElement('div'); row.className='chatItem'+(cur?' cur':'');
+      row.innerHTML=`<div class="ci"><div class="cn">${esc(c.name)}</div>`
+        +`<div class="cid">${typeLbl[c.type]||c.type} · ${esc(c.id)}</div></div>`
+        +`<button class="pick" ${cur?'disabled':''}>${cur?'aktiv':'auswählen'}</button>`;
+      const btn=row.querySelector('.pick');
+      if(!cur) btn.onclick=async ()=>{
+        btn.disabled=true;
+        try{
+          const r=await fetch('/api/notify/target',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({chatId:c.id})});
+          const j=await r.json();
+          if(j.ok){ toast('Empfänger gesetzt'); loadNotify(); renderChatList(chats, c.id); }
+          else { toast(j.error||'Fehler', true); btn.disabled=false; }
+        }catch{ toast('Verbindungsfehler', true); btn.disabled=false; }
+      };
+      el.appendChild(row);
+    });
+  }
+  $('nfFindChats').onclick = async ()=>{
+    $('nfFindChats').disabled=true; $('nfRecvStatus').textContent='Suche Chats/Gruppen…';
+    try{
+      const r=await fetch('/api/notify/chats'); const j=await r.json();
+      if(!r.ok||!j.ok){ $('nfRecvStatus').textContent=j.error||'Konnte Chats nicht laden.'; return; }
+      renderChatList(j.chats, j.current);
+    }catch{ $('nfRecvStatus').textContent='Verbindungsfehler.'; }
+    finally{ $('nfFindChats').disabled=false; }
   };
 
   $('maxSave').onclick  = ()=>sendCmd({action:'setMaxDur',  h:nz($('maxH').value),  m:nz($('maxM').value),  s:nz($('maxS').value)});

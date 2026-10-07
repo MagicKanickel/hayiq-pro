@@ -55,14 +55,16 @@ const NOTIFY_FILE = path.join(__dirname, 'notify.json');
 let notifyCfg = { done: true, offline: true, startstop: true, target: true };
 try { notifyCfg = { ...notifyCfg, ...JSON.parse(fs.readFileSync(NOTIFY_FILE, 'utf8')) }; } catch {}
 function saveNotifyCfg() { try { fs.writeFileSync(NOTIFY_FILE, JSON.stringify(notifyCfg)); } catch {} }
-const tgEnabled = () => !!(TG_TOKEN && TG_CHAT);
+// Ziel-Chat: in der App gewaehlt (notifyCfg.chatId) ODER Env-Fallback (TELEGRAM_CHAT_ID).
+const getTargetChat = () => (notifyCfg.chatId || TG_CHAT || '');
+const tgEnabled = () => !!(TG_TOKEN && getTargetChat());
 
 async function sendTelegram(text) {
   if (!tgEnabled()) return false;
   try {
     const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML', disable_web_page_preview: true })
+      body: JSON.stringify({ chat_id: getTargetChat(), text, parse_mode: 'HTML', disable_web_page_preview: true })
     });
     if (!r.ok) console.error('[telegram] HTTP', r.status);
     return r.ok;
@@ -152,7 +154,13 @@ app.get('/api/status', requireAuth, (req, res) => {
 
 // ── Benachrichtigungs-Einstellungen (Telegram) ──────────────────────────────
 app.get('/api/notify', requireAuth, (req, res) => {
-  res.json({ configured: tgEnabled(), settings: notifyCfg });
+  res.json({
+    configured: tgEnabled(),
+    hasToken: !!TG_TOKEN,
+    target: getTargetChat(),
+    targetSource: notifyCfg.chatId ? 'app' : (TG_CHAT ? 'env' : 'none'),
+    settings: notifyCfg
+  });
 });
 app.post('/api/notify', requireAuth, (req, res) => {
   const b = req.body || {};
@@ -163,9 +171,38 @@ app.post('/api/notify', requireAuth, (req, res) => {
   res.json({ ok: true, configured: tgEnabled(), settings: notifyCfg });
 });
 app.post('/api/notify/test', requireAuth, async (req, res) => {
-  if (!tgEnabled()) return res.status(400).json({ error: 'Telegram nicht konfiguriert (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID in Coolify setzen)' });
+  if (!tgEnabled()) return res.status(400).json({ error: 'Kein Empfänger/Token gesetzt' });
   const ok = await sendTelegram('🔔 Testnachricht vom Heubedampfer — Push funktioniert!');
   res.json({ ok });
+});
+// Bekannte Chats/Gruppen des Bots auflisten (aus getUpdates) – zum Auswaehlen des Ziels.
+app.get('/api/notify/chats', requireAuth, async (req, res) => {
+  if (!TG_TOKEN) return res.status(400).json({ error: 'TELEGRAM_BOT_TOKEN fehlt' });
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/getUpdates?limit=100`);
+    const j = await r.json();
+    if (!j.ok) return res.status(502).json({ error: 'Telegram: ' + (j.description || 'Fehler') });
+    const seen = new Map();
+    for (const u of j.result || []) {
+      const c = (u.message && u.message.chat) || (u.my_chat_member && u.my_chat_member.chat)
+             || (u.channel_post && u.channel_post.chat) || (u.chat_member && u.chat_member.chat);
+      if (c && !seen.has(c.id)) {
+        seen.set(c.id, {
+          id: String(c.id), type: c.type,
+          name: c.title || [c.first_name, c.last_name].filter(Boolean).join(' ') || String(c.id)
+        });
+      }
+    }
+    res.json({ ok: true, chats: [...seen.values()], current: getTargetChat() });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+// Ziel-Chat (Empfaenger) setzen – leer = zurueck auf Env-Fallback.
+app.post('/api/notify/target', requireAuth, (req, res) => {
+  const id = (req.body && req.body.chatId != null) ? String(req.body.chatId).trim() : '';
+  if (id && !/^-?\d+$/.test(id)) return res.status(400).json({ error: 'Ungültige Chat-ID' });
+  if (id) notifyCfg.chatId = id; else delete notifyCfg.chatId;
+  saveNotifyCfg();
+  res.json({ ok: true, target: getTargetChat(), configured: tgEnabled() });
 });
 
 // ── Song-Upload (Option B): Datei annehmen, oeffentliche URL zurueckgeben ────
