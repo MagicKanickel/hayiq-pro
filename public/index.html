@@ -396,6 +396,20 @@
   </div>
 
   <div class="sec">
+    <div class="secHead">Benachrichtigungen</div>
+    <div class="hintBox" id="notifyHint"><span class="ico">🔔</span><span>Lade…</span></div>
+    <div class="card2">
+      <div class="row2"><span class="lbl">Bedampfung fertig</span><span class="sw2" id="nf_done"></span></div>
+      <div class="row2"><span class="lbl">Gerät offline / online</span><span class="sw2" id="nf_offline"></span></div>
+      <div class="row2"><span class="lbl">Start / Stopp</span><span class="sw2" id="nf_startstop"></span></div>
+      <div class="row2"><span class="lbl">Zieltemperatur erreicht</span><span class="sw2" id="nf_target"></span></div>
+    </div>
+    <div class="card2 clearCard">
+      <button type="button" class="up-btn" id="notifyTest">Testnachricht senden</button>
+    </div>
+  </div>
+
+  <div class="sec">
     <div class="secHead">Firmware aktualisieren</div>
     <div class="hintBox">
       <span class="ico">💡</span>
@@ -637,7 +651,7 @@
 
   $('settingsBtn').addEventListener('click', () => {
     appView.classList.add('hidden'); settingsView.classList.remove('hidden'); window.scrollTo(0,0);
-    send('getSettings'); send('getPower'); send('getWifi');
+    send('getSettings'); send('getPower'); send('getWifi'); loadNotify();
   });
   $('settingsBack').addEventListener('click', () => {
     settingsView.classList.add('hidden'); appView.classList.remove('hidden'); window.scrollTo(0,0);
@@ -818,6 +832,32 @@
     $('fwProgWrap').classList.remove('hidden');
     sendCmd({action:'otaUpdate', url});
     $('fwFile').value='';
+  };
+
+  // ── Benachrichtigungen (Telegram) ──
+  const NF_KEYS=['done','offline','startstop','target'];
+  async function loadNotify(){
+    try{
+      const r=await fetch('/api/notify'); const j=await r.json();
+      NF_KEYS.forEach(k=>{ const el=$('nf_'+k); if(el) el.classList.toggle('on', !!(j.settings&&j.settings[k])); });
+      const hint=$('notifyHint');
+      if(hint) hint.innerHTML = j.configured
+        ? '<span class="ico">🔔</span><span>Telegram ist verbunden. Wähle, welche Ereignisse du aufs Handy bekommst.</span>'
+        : '<span class="ico">⚠️</span><span>Telegram ist noch <b>nicht eingerichtet</b>. Leg in Coolify <b>TELEGRAM_BOT_TOKEN</b> und <b>TELEGRAM_CHAT_ID</b> an und starte neu – dann kommen die Push-Nachrichten.</span>';
+    }catch{}
+  }
+  function saveNotify(){
+    const body={}; NF_KEYS.forEach(k=>body[k]=$('nf_'+k).classList.contains('on'));
+    fetch('/api/notify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).catch(()=>{});
+  }
+  NF_KEYS.forEach(k=>{ const el=$('nf_'+k); if(el) el.onclick=()=>{ el.classList.toggle('on'); saveNotify(); }; });
+  $('notifyTest').onclick = async ()=>{
+    $('notifyTest').disabled=true;
+    try{
+      const r=await fetch('/api/notify/test',{method:'POST'}); const j=await r.json();
+      if(j.ok) toast('Testnachricht gesendet'); else toast(j.error||'Senden fehlgeschlagen', true);
+    }catch{ toast('Verbindungsfehler', true); }
+    finally{ $('notifyTest').disabled=false; }
   };
 
   $('maxSave').onclick  = ()=>sendCmd({action:'setMaxDur',  h:nz($('maxH').value),  m:nz($('maxM').value),  s:nz($('maxS').value)});

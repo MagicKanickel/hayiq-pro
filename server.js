@@ -25,6 +25,8 @@ const ADMIN_PASS     = process.env.ADMIN_PASS     || '';          // Pflicht!
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const TARGET_MIN     = parseFloat(process.env.TARGET_MIN || '0');
 const TARGET_MAX     = parseFloat(process.env.TARGET_MAX || '99');
+const TG_TOKEN       = process.env.TELEGRAM_BOT_TOKEN || '';   // optional (Push aus)
+const TG_CHAT        = process.env.TELEGRAM_CHAT_ID   || '';
 
 if (!DEVICE_TOKEN || !ADMIN_PASS) {
   console.error('[FATAL] DEVICE_TOKEN und ADMIN_PASS muessen gesetzt sein (Environment).');
@@ -47,6 +49,52 @@ let lastSettings = null;                 // letzte Einstellungen vom Geraet
 let lastWifi     = null;                 // letzter WLAN-Zustand vom Geraet
 let lastSeen     = 0;                    // millis des letzten Statuspakets
 const appClients = new Set();            // eingeloggte Browser-Sockets
+
+// ── Telegram-Push (optional, nur wenn Env gesetzt) ──────────────────────────
+const NOTIFY_FILE = path.join(__dirname, 'notify.json');
+let notifyCfg = { done: true, offline: true, startstop: true, target: true };
+try { notifyCfg = { ...notifyCfg, ...JSON.parse(fs.readFileSync(NOTIFY_FILE, 'utf8')) }; } catch {}
+function saveNotifyCfg() { try { fs.writeFileSync(NOTIFY_FILE, JSON.stringify(notifyCfg)); } catch {} }
+const tgEnabled = () => !!(TG_TOKEN && TG_CHAT);
+
+async function sendTelegram(text) {
+  if (!tgEnabled()) return false;
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: 'HTML', disable_web_page_preview: true })
+    });
+    if (!r.ok) console.error('[telegram] HTTP', r.status);
+    return r.ok;
+  } catch (e) { console.error('[telegram]', e.message); return false; }
+}
+// Sendet nur, wenn der Ereignistyp in den App-Einstellungen aktiv ist.
+function notify(kind, text) { if (notifyCfg[kind]) sendTelegram(text); }
+
+// Ereigniserkennung aus dem Status-Stream (Flankenerkennung)
+const ev = { running: false, endPending: false, targetHit: false, online: false };
+function fmtTemp(x) { return (x == null || x <= -100) ? '—' : (Math.round(x * 10) / 10).toString().replace('.', ',') + ' °C'; }
+function detectStatusEvents(s) {
+  if (!s) return;
+  const running = !!s.running;
+  if (running && !ev.running) { ev.targetHit = false; notify('startstop', '▶️ Bedampfung <b>gestartet</b>'); }
+  if (!running && ev.running) { notify('startstop', '⏹️ Bedampfung <b>gestoppt</b>'); }
+  if (!!s.endPending && !ev.endPending) {
+    notify('done', `✅ <b>Bedampfung fertig</b>\nMax. ${fmtTemp(s.endMaxTemp)} · End ${fmtTemp(s.endFinalTemp)}`);
+  }
+  if (running && !ev.targetHit && typeof s.waterTemp === 'number' && typeof s.targetTemp === 'number'
+      && s.waterTemp > -100 && s.waterTemp >= s.targetTemp) {
+    ev.targetHit = true;
+    notify('target', `🌡️ <b>Zieltemperatur erreicht</b> (${fmtTemp(s.waterTemp)})`);
+  }
+  ev.running = running; ev.endPending = !!s.endPending;
+}
+function detectOnlineEvent(nowOnline) {
+  if (nowOnline === ev.online) return;
+  ev.online = nowOnline;
+  if (nowOnline) notify('offline', '🟢 Heubedampfer wieder <b>online</b>');
+  else           notify('offline', '🔴 Heubedampfer <b>offline</b> (keine Verbindung)');
+}
 
 const VALID_ACTIONS = new Set([
   'start', 'stop', 'pause', 'resume', 'setTarget', 'confirmEnd',
@@ -100,6 +148,24 @@ app.get('/api/me', (req, res) => {
 
 app.get('/api/status', requireAuth, (req, res) => {
   res.json({ online: deviceOnline, lastSeen, status: lastStatus });
+});
+
+// ── Benachrichtigungs-Einstellungen (Telegram) ──────────────────────────────
+app.get('/api/notify', requireAuth, (req, res) => {
+  res.json({ configured: tgEnabled(), settings: notifyCfg });
+});
+app.post('/api/notify', requireAuth, (req, res) => {
+  const b = req.body || {};
+  for (const k of ['done', 'offline', 'startstop', 'target']) {
+    if (typeof b[k] === 'boolean') notifyCfg[k] = b[k];
+  }
+  saveNotifyCfg();
+  res.json({ ok: true, configured: tgEnabled(), settings: notifyCfg });
+});
+app.post('/api/notify/test', requireAuth, async (req, res) => {
+  if (!tgEnabled()) return res.status(400).json({ error: 'Telegram nicht konfiguriert (TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID in Coolify setzen)' });
+  const ok = await sendTelegram('🔔 Testnachricht vom Heubedampfer — Push funktioniert!');
+  res.json({ ok });
 });
 
 // ── Song-Upload (Option B): Datei annehmen, oeffentliche URL zurueckgeben ────
@@ -203,6 +269,7 @@ wssDevice.on('connection', (ws) => {
         deviceOnline = true;
         ws.send(JSON.stringify({ type: 'ack', ok: true }));
         console.log(`[device] verbunden (${msg.deviceId || 'unbekannt'})`);
+        detectOnlineEvent(true);
         pushDeviceState();
       } else {
         ws.send(JSON.stringify({ type: 'ack', ok: false }));
@@ -215,6 +282,8 @@ wssDevice.on('connection', (ws) => {
       lastStatus = { ...msg }; delete lastStatus.type;
       lastSeen = Date.now();
       deviceOnline = true;
+      detectOnlineEvent(true);
+      detectStatusEvents(lastStatus);
       pushDeviceState();
     } else if (msg.type === 'settings') {
       lastSettings = { ...msg }; delete lastSettings.type;
@@ -239,6 +308,7 @@ wssDevice.on('connection', (ws) => {
     if (deviceSocket === ws) {
       deviceSocket = null;
       deviceOnline = false;
+      detectOnlineEvent(false);
       pushDeviceState();
       console.log('[device] getrennt');
     }
@@ -294,6 +364,7 @@ wssApp.on('connection', (ws) => {
 setInterval(() => {
   if (deviceOnline && Date.now() - lastSeen > 15000) {
     deviceOnline = false;
+    detectOnlineEvent(false);
     pushDeviceState();
     console.log('[device] Timeout -> offline');
   }
