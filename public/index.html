@@ -198,6 +198,10 @@
   .chatItem .cid{color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums}
   .chatItem .pick{background:var(--accent); color:#052015; border:0; border-radius:8px; padding:7px 12px; font-size:13px; font-weight:800; white-space:nowrap}
   .chatItem .pick:disabled{background:#22304a; color:var(--muted)}
+  .lockRow{display:flex; align-items:center; gap:12px; padding:10px 2px}
+  .lockText{flex:1; font-size:15px; font-weight:600}
+  .lockText span{display:block; font-weight:400; color:var(--muted); font-size:13px; margin-top:2px}
+  .lock-btn{background:transparent; border:1px solid var(--line); color:var(--muted); border-radius:10px; padding:10px 16px; font-size:13px; font-weight:700; width:100%}
   .statRow{display:flex; gap:10px; padding:10px 0}
   .stat{flex:1; text-align:center}
   .stat .sk{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700}
@@ -414,37 +418,54 @@
       <div class="row2"><span class="lbl">Start / Stopp</span><span class="sw2" id="nf_startstop"></span></div>
       <div class="row2"><span class="lbl">Zieltemperatur erreicht</span><span class="sw2" id="nf_target"></span></div>
     </div>
-
-    <div class="secHead sub">Empfänger</div>
-    <div class="card2">
-      <div class="row2"><span class="lbl">Aktuelles Ziel</span><span class="meta" id="nfTarget">—</span></div>
-      <div class="recvRow">
-        <button type="button" class="up-btn" id="nfFindChats">Empfänger / Gruppe wählen</button>
-      </div>
-      <div class="recvList" id="nfChatList"></div>
-      <div class="upStatus" id="nfRecvStatus"></div>
-    </div>
-
     <div class="card2 clearCard">
       <button type="button" class="up-btn" id="notifyTest">Testnachricht senden</button>
     </div>
   </div>
 
   <div class="sec">
-    <div class="secHead">Firmware aktualisieren</div>
-    <div class="hintBox">
-      <span class="ico">💡</span>
-      <span>Spiel nur eine Firmware auf, die du vorher auf dem <b>baugleichen Test-Display</b> geprüft hast.
-      Das Gerät installiert sie und <b>startet neu</b> — es ist dabei ca. 1&nbsp;Minute nicht erreichbar.
-      Ein unvollständiger Download ist ungefährlich (das Gerät bleibt dann auf der alten Version).</span>
-    </div>
-    <div class="card2">
-      <div class="uploadRow">
-        <input type="file" id="fwFile" accept=".bin">
-        <button class="up-btn" id="fwUpload">Hochladen &amp; Aufspielen</button>
+    <div class="secHead">Admin</div>
+
+    <div class="card2" id="adminLock">
+      <div class="lockRow">
+        <div class="lockText">🔒 Geschützter Bereich<br><span>Empfänger &amp; Firmware-Update</span></div>
+        <div class="durEdit">
+          <input type="password" inputmode="numeric" id="adminPin" maxlength="8" placeholder="PIN" style="width:84px">
+          <button class="mini-btn" id="adminUnlock" title="Entsperren">→</button>
+        </div>
       </div>
-      <div class="fwProg hidden" id="fwProgWrap"><div class="fwBar" id="fwBar"></div></div>
-      <div class="upStatus" id="fwStatus"></div>
+    </div>
+
+    <div id="adminBody" class="hidden">
+      <div class="secHead sub">Empfänger</div>
+      <div class="card2">
+        <div class="row2"><span class="lbl">Aktuelles Ziel</span><span class="meta" id="nfTarget">—</span></div>
+        <div class="recvRow">
+          <button type="button" class="up-btn" id="nfFindChats">Empfänger / Gruppe wählen</button>
+        </div>
+        <div class="recvList" id="nfChatList"></div>
+        <div class="upStatus" id="nfRecvStatus"></div>
+      </div>
+
+      <div class="secHead sub">Firmware aktualisieren</div>
+      <div class="hintBox">
+        <span class="ico">💡</span>
+        <span>Spiel nur eine Firmware auf, die du vorher auf dem <b>baugleichen Test-Display</b> geprüft hast.
+        Das Gerät installiert sie und <b>startet neu</b> — es ist dabei ca. 1&nbsp;Minute nicht erreichbar.
+        Ein unvollständiger Download ist ungefährlich (das Gerät bleibt dann auf der alten Version).</span>
+      </div>
+      <div class="card2">
+        <div class="uploadRow">
+          <input type="file" id="fwFile" accept=".bin">
+          <button class="up-btn" id="fwUpload">Hochladen &amp; Aufspielen</button>
+        </div>
+        <div class="fwProg hidden" id="fwProgWrap"><div class="fwBar" id="fwBar"></div></div>
+        <div class="upStatus" id="fwStatus"></div>
+      </div>
+
+      <div class="card2 clearCard">
+        <button type="button" class="lock-btn" id="adminLockBtn">Admin-Bereich sperren</button>
+      </div>
     </div>
   </div>
 </div>
@@ -672,6 +693,7 @@
 
   $('settingsBtn').addEventListener('click', () => {
     appView.classList.add('hidden'); settingsView.classList.remove('hidden'); window.scrollTo(0,0);
+    adminLock(true);
     send('getSettings'); send('getPower'); send('getWifi'); loadNotify();
   });
   $('settingsBack').addEventListener('click', () => {
@@ -921,6 +943,21 @@
     }catch{ $('nfRecvStatus').textContent='Verbindungsfehler.'; }
     finally{ $('nfFindChats').disabled=false; }
   };
+
+  // ── Admin-Bereich (PIN-geschützt – UI-Schutz, nicht kryptografisch) ──
+  const ADMIN_PIN='8877';
+  function adminLock(lock){
+    $('adminBody').classList.toggle('hidden', lock);
+    $('adminLock').classList.toggle('hidden', !lock);
+    if(lock) $('adminPin').value='';
+  }
+  function adminTryUnlock(){
+    if($('adminPin').value.trim()===ADMIN_PIN){ adminLock(false); }
+    else { toast('Falsche PIN', true); $('adminPin').value=''; }
+  }
+  $('adminUnlock').onclick=adminTryUnlock;
+  $('adminPin').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); adminTryUnlock(); } });
+  $('adminLockBtn').onclick=()=>adminLock(true);
 
   $('maxSave').onclick  = ()=>sendCmd({action:'setMaxDur',  h:nz($('maxH').value),  m:nz($('maxM').value),  s:nz($('maxS').value)});
   $('holdSave').onclick = ()=>sendCmd({action:'setHoldDur', h:nz($('holdH').value), m:nz($('holdM').value), s:nz($('holdS').value)});

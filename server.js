@@ -27,6 +27,7 @@ const TARGET_MIN     = parseFloat(process.env.TARGET_MIN || '0');
 const TARGET_MAX     = parseFloat(process.env.TARGET_MAX || '99');
 const TG_TOKEN       = process.env.TELEGRAM_BOT_TOKEN || '';   // optional (Push aus)
 const TG_CHAT        = process.env.TELEGRAM_CHAT_ID   || '';
+const APP_URL        = process.env.APP_URL || 'https://hayiqpro.clark-industries.at';
 
 if (!DEVICE_TOKEN || !ADMIN_PASS) {
   console.error('[FATAL] DEVICE_TOKEN und ADMIN_PASS muessen gesetzt sein (Environment).');
@@ -61,10 +62,11 @@ const tgEnabled = () => !!(TG_TOKEN && getTargetChat());
 
 async function sendTelegram(text) {
   if (!tgEnabled()) return false;
+  const full = APP_URL ? `${text}\n\n📲 <a href="${APP_URL}">Zur App öffnen</a>` : text;
   try {
     const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: getTargetChat(), text, parse_mode: 'HTML', disable_web_page_preview: true })
+      body: JSON.stringify({ chat_id: getTargetChat(), text: full, parse_mode: 'HTML', disable_web_page_preview: true })
     });
     if (!r.ok) console.error('[telegram] HTTP', r.status);
     return r.ok;
