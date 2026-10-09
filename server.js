@@ -48,6 +48,7 @@ let deviceOnline = false;
 let lastStatus   = null;                 // letzter Status vom Geraet
 let lastSettings = null;                 // letzte Einstellungen vom Geraet
 let lastWifi     = null;                 // letzter WLAN-Zustand vom Geraet
+let otaFileBuf   = null;                 // gepufferte Firmware fuer die WSS-OTA
 let lastSeen     = 0;                    // millis des letzten Statuspakets
 const appClients = new Set();            // eingeloggte Browser-Sockets
 
@@ -343,7 +344,26 @@ wssDevice.on('connection', (ws) => {
     } else if (msg.type === 'otaProgress') {
       broadcastToApps({ type: 'otaProgress', pct: msg.pct });
     } else if (msg.type === 'otaResult') {
+      otaFileBuf = null;   // Speicher freigeben
       broadcastToApps({ type: 'otaResult', ok: !!msg.ok, error: msg.error || null });
+    } else if (msg.type === 'otaStart') {
+      // Neueste Firmware puffern + Groesse melden (WSS-OTA ueber die Relay-Verbindung).
+      otaFileBuf = null;
+      try {
+        const files = fs.readdirSync(firmwareDir).filter(f => f.endsWith('.bin'));
+        if (files.length) {
+          otaFileBuf = fs.readFileSync(path.join(firmwareDir, files[0]));
+          console.log(`[fw] WSS-OTA Start: ${files[0]} (${otaFileBuf.length} B)`);
+        }
+      } catch (e) { console.error('[fw] otaStart', e.message); }
+      ws.send(JSON.stringify({ type: 'otaInfo', size: otaFileBuf ? otaFileBuf.length : 0 }));
+    } else if (msg.type === 'otaChunk') {
+      if (!otaFileBuf) return;
+      const CHUNK = 4096;
+      const offset = parseInt(msg.offset, 10) || 0;
+      if (offset < otaFileBuf.length) {
+        ws.send(otaFileBuf.subarray(offset, Math.min(offset + CHUNK, otaFileBuf.length)));
+      }
     }
   });
 
