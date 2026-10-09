@@ -135,6 +135,15 @@
   .songList .s-item, .logList .l-item{display:flex; justify-content:space-between; gap:10px; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14px}
   .songList .s-item:last-child, .logList .l-item:last-child{border-bottom:0}
   .songList .s-item .meta, .logList .l-item .meta{color:var(--muted); font-weight:600}
+  .logList .l-item2{display:flex; flex-direction:column; gap:3px; padding:10px 2px; border-bottom:1px solid var(--line)}
+  .logList .l-item2:last-child{border-bottom:0}
+  .l-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
+  .l-time{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums}
+  .l-meta{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums}
+  .rbadge{font-size:10px; letter-spacing:.04em; text-transform:uppercase; font-weight:800; padding:2px 7px; border-radius:999px; white-space:nowrap; flex:0 0 auto}
+  .rbadge.r-man{background:rgba(56,189,248,.16); color:var(--info)}
+  .rbadge.r-auto{background:var(--accentDim); color:var(--accent)}
+  .rbadge.r-pwr{background:rgba(239,68,68,.16); color:#fca5a5}
 
   /* ── WLAN & Sicherheit ── */
   .hintBox{display:flex; gap:10px; background:rgba(56,189,248,.09); border:1px solid rgba(56,189,248,.35);
@@ -750,14 +759,20 @@
     $('pKwh').textContent = (p.kwh!=null? p.kwh.toFixed(1).replace('.',',')+' kWh':'—');
     $('pEur').textContent = (p.eur!=null? p.eur.toFixed(2).replace('.',',')+' €':'—');
     const log=$('powerLog'); log.innerHTML='';
+    const pad=n=>String(n).padStart(2,'0');
+    const fmtDT=(u)=>{ if(!u) return '—'; const d=new Date(u*1000); return `${pad(d.getDate())}.${pad(d.getMonth()+1)}. ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+    const fmtDurS=(s)=>{ s=Math.max(0,s|0); if(s<60) return s+' s'; if(s<3600) return Math.round(s/60)+' min'; const h=(s/3600|0), m=Math.round((s%3600)/60); return h+' h'+(m?' '+m+' min':''); };
+    const fmtMax=(x)=>(x==null||x<=-100)?'—':x.toFixed(1).replace('.',',')+' °C';
+    const REASONS={0:['Manuell','r-man'],1:['Automatisch','r-auto'],2:['Stromausfall','r-pwr']};
     (p.log||[]).forEach(e=>{
-      let date='—'; if(e.t){ const d=new Date(e.t*1000);
-        date=`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
-      const it=document.createElement('div'); it.className='l-item';
-      it.innerHTML=`<span>${date}</span><span class="meta">${Math.round((e.dur||0)/60)} min · ${(e.kwh||0).toFixed(2).replace('.',',')} kWh · ${(e.eur||0).toFixed(2).replace('.',',')} €</span>`;
+      const r=REASONS[e.reason]; const badge = r?`<span class="rbadge ${r[1]}">${r[0]}</span>`:'';
+      const times = e.start ? `${fmtDT(e.start)} → ${fmtDT(e.t)}` : fmtDT(e.t);
+      const it=document.createElement('div'); it.className='l-item2';
+      it.innerHTML=`<div class="l-top"><span class="l-time">${times}</span>${badge}</div>`
+        +`<div class="l-meta">${fmtDurS(e.dur)} · max ${fmtMax(e.max)} · ${(e.kwh||0).toFixed(2).replace('.',',')} kWh · ${(e.eur||0).toFixed(2).replace('.',',')} €</div>`;
       log.appendChild(it);
     });
-    if(!(p.log||[]).length) log.innerHTML='<div class="l-item"><span class="meta">Noch keine Sitzungen</span></div>';
+    if(!(p.log||[]).length) log.innerHTML='<div class="l-item2"><span class="l-meta">Noch keine Sitzungen</span></div>';
     renderChart();
   }
 
