@@ -245,12 +245,17 @@ app.post('/api/upload-firmware', requireAuth, fwUpload.single('firmware'), (req,
       if (f !== stored) fs.unlinkSync(path.join(firmwareDir, f));
     }
   } catch {}
-  const base = req.protocol + '://' + req.get('host');
-  res.json({ ok: true, url: base + '/firmware/' + stored, size: req.file.size });
+  // Geraet laedt per HTTPS (WiFiClientSecure) -> Schema fest auf https.
+  const url = 'https://' + req.get('host') + '/firmware/' + stored;
+  console.log(`[fw] upload ok: ${url} (${req.file.size} B, req.protocol=${req.protocol})`);
+  res.json({ ok: true, url, size: req.file.size });
 });
 
 // Firmware oeffentlich servieren, damit das Geraet sie per HTTPS laden kann.
-app.use('/firmware', express.static(firmwareDir, { maxAge: '5m' }));
+app.use('/firmware', (req, res, next) => {
+  console.log(`[fw] GET ${req.url}  ua=${(req.get('user-agent') || '-').slice(0, 40)}`);
+  next();
+}, express.static(firmwareDir, { maxAge: '5m' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 
