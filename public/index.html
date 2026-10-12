@@ -216,9 +216,59 @@
   .stat .sk{display:block; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700}
   .stat .sv{display:block; font-size:22px; font-weight:800; margin-top:3px}
   .stat:nth-child(2) .sv{color:var(--info)} .stat:nth-child(3) .sv{color:var(--accent)}
+
+  /* ===== Ladeanimation (1,1 s) ===== */
+  #splash{position:fixed; inset:0; z-index:9999; background:var(--bg);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    animation:spOut .22s ease-in .88s forwards}
+  #splash svg{width:132px; height:132px; overflow:visible}
+  .sp-track{stroke:var(--line)}
+  .sp-ring{stroke:var(--accent); stroke-dasharray:302; stroke-dashoffset:302;
+    transform:rotate(-90deg); transform-origin:60px 60px;
+    animation:spRing .6s cubic-bezier(.65,0,.35,1) forwards}
+  .sp-bale{fill:var(--warn); opacity:0; transform-origin:60px 80px;
+    animation:spPop .3s cubic-bezier(.34,1.56,.64,1) .08s forwards}
+  .sp-band{stroke:#b45309; opacity:0; animation:spFade .2s ease .2s forwards}
+  .sp-steam{stroke:var(--txt); fill:none; stroke-linecap:round; stroke-width:3.2;
+    stroke-dasharray:34; stroke-dashoffset:34; opacity:0; animation:spSteam .55s ease-out forwards}
+  .sp-steam.s1{animation-delay:.22s} .sp-steam.s2{animation-delay:.30s} .sp-steam.s3{animation-delay:.38s}
+  .sp-word{display:flex; align-items:center; gap:9px; opacity:0; transform:translateY(8px);
+    animation:spWord .35s ease-out .45s forwards}
+  .sp-word .dot{width:9px; height:9px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent)}
+  .sp-word b{font-size:20px; letter-spacing:.06em; font-weight:700; color:var(--txt)}
+  @keyframes spRing{to{stroke-dashoffset:0}}
+  @keyframes spPop{from{opacity:0; transform:scale(.6)} to{opacity:1; transform:scale(1)}}
+  @keyframes spFade{to{opacity:1}}
+  @keyframes spSteam{0%{opacity:0; stroke-dashoffset:34; transform:translateY(4px)} 35%{opacity:.9}
+    100%{opacity:.75; stroke-dashoffset:0; transform:translateY(-3px)}}
+  @keyframes spWord{to{opacity:1; transform:none}}
+  @keyframes spOut{to{opacity:0; visibility:hidden}}
+  @media (prefers-reduced-motion:reduce){
+    #splash *{animation-duration:.01s !important; animation-delay:0s !important}
+    #splash{animation:spOut .2s ease .3s forwards}
+  }
 </style>
 </head>
 <body>
+
+<!-- LADEANIMATION -->
+<div id="splash" aria-hidden="true">
+  <svg viewBox="0 0 120 120">
+    <circle class="sp-track" cx="60" cy="60" r="48" fill="none" stroke-width="5"/>
+    <circle class="sp-ring" cx="60" cy="60" r="48" fill="none" stroke-width="5" stroke-linecap="round"/>
+    <path class="sp-steam s1" d="M46 58 c-5 -6 5 -10 0 -16 c-3 -4 2 -7 0 -10"/>
+    <path class="sp-steam s2" d="M60 56 c-5 -6 5 -10 0 -16 c-3 -4 2 -7 0 -12"/>
+    <path class="sp-steam s3" d="M74 58 c-5 -6 5 -10 0 -16 c-3 -4 2 -7 0 -10"/>
+    <rect class="sp-bale" x="36" y="64" width="48" height="24" rx="5"/>
+    <line class="sp-band" x1="50" y1="64" x2="50" y2="88" stroke-width="2.5"/>
+    <line class="sp-band" x1="70" y1="64" x2="70" y2="88" stroke-width="2.5"/>
+  </svg>
+  <div class="sp-word"><span class="dot"></span><b>Hay IQ Pro</b></div>
+</div>
+<script>
+  (function(){ const s=document.getElementById('splash');
+    s.addEventListener('animationend', e => { if (e.target===s) s.remove(); }); })();
+</script>
 
 <!-- LOGIN -->
 <div class="login" id="loginView">
