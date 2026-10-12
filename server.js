@@ -94,11 +94,29 @@ function detectStatusEvents(s) {
   }
   ev.running = running; ev.endPending = !!s.endPending;
 }
+// Offline nur melden, wenn es laenger als OFFLINE_DEBOUNCE_MS so bleibt.
+// Kurze Aussetzer (WLAN-Hickup, kurze WSS-Trennung) werden ignoriert -> kein Spam.
+const OFFLINE_DEBOUNCE_MS = 180000;   // 3 min
+let offlineTimer = null;
+let offlineNotified = false;
 function detectOnlineEvent(nowOnline) {
   if (nowOnline === ev.online) return;
   ev.online = nowOnline;
-  if (nowOnline) notify('offline', '🟢 Heubedampfer wieder <b>online</b>');
-  else           notify('offline', '🔴 Heubedampfer <b>offline</b> (keine Verbindung)');
+  if (nowOnline) {
+    if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null; }  // war nur ein kurzer Aussetzer
+    if (offlineNotified) {
+      offlineNotified = false;
+      notify('offline', '🟢 Heubedampfer wieder <b>online</b>');
+    }
+  } else {
+    if (!offlineTimer && !offlineNotified) {
+      offlineTimer = setTimeout(() => {
+        offlineTimer = null;
+        offlineNotified = true;
+        notify('offline', '🔴 Heubedampfer <b>offline</b> (seit 3 min keine Verbindung)');
+      }, OFFLINE_DEBOUNCE_MS);
+    }
+  }
 }
 
 const VALID_ACTIONS = new Set([
