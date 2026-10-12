@@ -54,7 +54,7 @@ const appClients = new Set();            // eingeloggte Browser-Sockets
 
 // ── Telegram-Push (optional, nur wenn Env gesetzt) ──────────────────────────
 const NOTIFY_FILE = path.join(__dirname, 'notify.json');
-let notifyCfg = { done: true, offline: true, startstop: true, target: true };
+let notifyCfg = { done: true, offline: true, startstop: true, target: true, heatcheck: true };
 try { notifyCfg = { ...notifyCfg, ...JSON.parse(fs.readFileSync(NOTIFY_FILE, 'utf8')) }; } catch {}
 function saveNotifyCfg() { try { fs.writeFileSync(NOTIFY_FILE, JSON.stringify(notifyCfg)); } catch {} }
 // Ziel-Chat: in der App gewaehlt (notifyCfg.chatId) ODER Env-Fallback (TELEGRAM_CHAT_ID).
@@ -77,12 +77,37 @@ async function sendTelegram(text) {
 function notify(kind, text) { if (notifyCfg[kind]) sendTelegram(text); }
 
 // Ereigniserkennung aus dem Status-Stream (Flankenerkennung)
-const ev = { running: false, endPending: false, targetHit: false, online: false };
+const ev = { running: false, endPending: false, targetHit: false, online: false,
+             heatStartMs: 0, heatStartTemp: null, heatChecked: false };
+// Heiz-Check: steigt die Wassertemperatur HEAT_CHECK_MS nach dem Start nicht um
+// mindestens HEAT_MIN_RISE, bekommt das Kochfeld vermutlich keinen Strom.
+const HEAT_CHECK_MS = 20 * 60 * 1000;
+const HEAT_MIN_RISE = 3;   // °C
+const validTemp = x => typeof x === 'number' && x > -100;
 function fmtTemp(x) { return (x == null || x <= -100) ? '—' : (Math.round(x * 10) / 10).toString().replace('.', ',') + ' °C'; }
+function checkHeating(s, running) {
+  if (!running) return;
+  if (ev.heatStartTemp === null && validTemp(s.waterTemp)) ev.heatStartTemp = s.waterTemp;
+  if (ev.heatChecked || Date.now() - ev.heatStartMs < HEAT_CHECK_MS) return;
+  ev.heatChecked = true;
+  if (ev.heatStartTemp === null || !validTemp(s.waterTemp)) return;
+  // Schon nahe am Ziel gestartet (z.B. Neustart nach kurzer Pause) -> kein Anstieg zu erwarten
+  if (validTemp(s.targetTemp) && s.waterTemp >= s.targetTemp - 2) return;
+  const rise = s.waterTemp - ev.heatStartTemp;
+  if (rise < HEAT_MIN_RISE) {
+    notify('heatcheck', `⚠️ <b>Keine Erwärmung!</b>\nSeit 20 min läuft die Bedampfung, aber das Wasser hat sich kaum erwärmt `
+      + `(${fmtTemp(ev.heatStartTemp)} → ${fmtTemp(s.waterTemp)}).\nBekommt das Kochfeld Strom?`);
+  }
+}
 function detectStatusEvents(s) {
   if (!s) return;
   const running = !!s.running;
-  if (running && !ev.running) { ev.targetHit = false; notify('startstop', '▶️ Bedampfung <b>gestartet</b>'); }
+  if (running && !ev.running) {
+    ev.targetHit = false;
+    ev.heatStartMs = Date.now(); ev.heatStartTemp = validTemp(s.waterTemp) ? s.waterTemp : null; ev.heatChecked = false;
+    notify('startstop', '▶️ Bedampfung <b>gestartet</b>');
+  }
+  checkHeating(s, running);
   if (!running && ev.running) { notify('startstop', '⏹️ Bedampfung <b>gestoppt</b>'); }
   if (!!s.endPending && !ev.endPending) {
     notify('done', `✅ <b>Bedampfung fertig</b>\nMax. ${fmtTemp(s.endMaxTemp)} · End ${fmtTemp(s.endFinalTemp)}`);
@@ -185,7 +210,7 @@ app.get('/api/notify', requireAuth, (req, res) => {
 });
 app.post('/api/notify', requireAuth, (req, res) => {
   const b = req.body || {};
-  for (const k of ['done', 'offline', 'startstop', 'target']) {
+  for (const k of ['done', 'offline', 'startstop', 'target', 'heatcheck']) {
     if (typeof b[k] === 'boolean') notifyCfg[k] = b[k];
   }
   saveNotifyCfg();

@@ -476,6 +476,7 @@
       <div class="row2"><span class="lbl">Gerät offline / online</span><span class="sw2" id="nf_offline"></span></div>
       <div class="row2"><span class="lbl">Start / Stopp</span><span class="sw2" id="nf_startstop"></span></div>
       <div class="row2"><span class="lbl">Zieltemperatur erreicht</span><span class="sw2" id="nf_target"></span></div>
+      <div class="row2"><span class="lbl">Keine Erwärmung nach 20 min</span><span class="sw2" id="nf_heatcheck"></span></div>
     </div>
     <div class="card2 clearCard">
       <button type="button" class="up-btn" id="notifyTest">Testnachricht senden</button>
@@ -943,7 +944,7 @@
   };
 
   // ── Benachrichtigungen (Telegram) ──
-  const NF_KEYS=['done','offline','startstop','target'];
+  const NF_KEYS=['done','offline','startstop','target','heatcheck'];
   async function loadNotify(){
     try{
       const r=await fetch('/api/notify'); const j=await r.json();
