@@ -148,7 +148,7 @@ const VALID_ACTIONS = new Set([
   'start', 'stop', 'pause', 'resume', 'setTarget', 'confirmEnd',
   'getSettings', 'getPower', 'setMaxDur', 'setHoldDur', 'setWeekday',
   'setMelody', 'setPowerCfg', 'downloadSong', 'clearPower',
-  'getWifi', 'addWifi', 'removeWifi', 'setPin', 'otaUpdate'
+  'getWifi', 'addWifi', 'removeWifi', 'setPin', 'otaUpdate', 'stopLock'
 ]);
 
 // ── HTTP / Express ──────────────────────────────────────────────────────────

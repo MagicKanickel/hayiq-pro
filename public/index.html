@@ -183,6 +183,14 @@
   .seg{flex:1 1 auto; min-width:64px; background:#0e1826; border:1px solid var(--line); color:var(--muted);
     border-radius:9px; padding:9px 6px; font-size:13px; font-weight:700}
   .seg.active{background:var(--accentDim); border-color:rgba(16,185,129,.5); color:var(--accent)}
+  .seg.lockOn.active{background:rgba(245,158,11,.14); border-color:rgba(245,158,11,.55); color:var(--warn)}
+  .lockCard{grid-column:1 / -1}
+  .lockCard .lockHead{display:flex; align-items:center; gap:8px}
+  .lockCard .lockHead svg{width:16px; height:16px; color:var(--muted)}
+  .lockCard.on .lockHead svg{color:var(--warn)}
+  .lockCard .segRow{padding:10px 0 4px}
+  .lockCard .hint{font-size:12.5px; color:var(--muted); line-height:1.4}
+  .seg:disabled{opacity:.45}
   .chartWrap{position:relative; padding:6px 2px 2px}
   #costChart{width:100%; height:auto; display:block}
   #costChart .bar{fill:url(#barGrad)}
@@ -312,7 +320,7 @@
     <div class="card"><div class="k">Laufzeit</div><div class="v tnum" id="elapsed">—</div></div>
     <div class="card"><div class="k">Voraussichtl. Ende</div><div class="v tnum" id="eta">—</div></div>
     <div class="card temp"><div class="k">Zieltemperatur</div><div class="v tnum" id="targetTemp">—</div></div>
-    <div class="card temp"><div class="k">Wassertemperatur</div><div class="v tnum" id="waterTempCard">—</div></div>
+    <div class="card out"><div class="k">Außentemperatur</div><div class="v tnum" id="outsideTempCard">—</div></div>
   </div>
 
   <div class="controls">
@@ -328,6 +336,18 @@
         <button class="step minus" id="tMinus" disabled>−</button>
         <button class="step plus" id="tPlus" disabled>+</button>
       </div>
+    </div>
+    <div class="card lockCard" id="lockCard">
+      <div class="lockHead">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        <span class="k">Stopp am Display sperren</span>
+      </div>
+      <div class="segRow" id="lockSeg">
+        <button type="button" class="seg" data-lock="0">Aus</button>
+        <button type="button" class="seg lockOn" data-lock="1">Dieser Durchgang</button>
+        <button type="button" class="seg lockOn" data-lock="2">Immer</button>
+      </div>
+      <div class="hint" id="lockHint">Am Display kann dann niemand stoppen oder pausieren. Hier in der App bleibt Stoppen möglich.</div>
     </div>
   </div>
 </div>
@@ -681,7 +701,7 @@
     // Werte
     $('waterTemp').textContent = st ? (st.waterTemp<=-100||st.waterTemp==null ? '—' : st.waterTemp.toFixed(1).replace('.',',')) : '—';
     $('targetTemp').textContent = st ? fmtTemp(st.targetTemp) : '—';
-    $('waterTempCard').textContent = st ? fmtTemp(st.waterTemp) : '—';
+    $('outsideTempCard').textContent = st ? fmtTemp(st.outsideTemp) : '—';
     $('elapsed').textContent = st ? fmtDur(st.elapsedSec) : '—';
     $('eta').textContent = running && st ? fmtEta(st.etaUnix) : '—';
     $('targetEdit').textContent = st ? fmtTemp(st.targetTemp) : '—';
@@ -711,7 +731,25 @@
     $('resumeBtn').disabled = !en || !running || !paused;
     $('tPlus').disabled  = !en;
     $('tMinus').disabled = !en;
+
+    // Stopp-Sperre (stopLock fehlt bei alter Firmware -> Bedienfeld aus)
+    const hasLock = !!(st && typeof st.stopLock === 'number');
+    const lock = hasLock ? st.stopLock : 0;
+    $('lockCard').classList.toggle('on', lock > 0);
+    $('lockSeg').querySelectorAll('.seg').forEach(b => {
+      b.classList.toggle('active', hasLock && +b.dataset.lock === lock);
+      b.disabled = !en || !hasLock;
+    });
+    $('lockHint').textContent = !hasLock && online ? 'Braucht neue Firmware auf dem Display.'
+      : lock === 1 ? (running ? 'Gesperrt bis dieser Durchgang endet. Stoppen nur hier in der App.'
+                              : 'Gilt für den nächsten Durchgang und endet danach automatisch.')
+      : lock === 2 ? 'Dauerhaft gesperrt. Stoppen und Pausieren nur hier in der App.'
+      : 'Am Display kann dann niemand stoppen oder pausieren. Hier in der App bleibt Stoppen möglich.';
   }
+  $('lockSeg').addEventListener('click', e => {
+    const b = e.target.closest('.seg'); if (!b || b.disabled) return;
+    send('stopLock', +b.dataset.lock);
+  });
 
   // ── Steuer-Aktionen ──
   $('startStopBtn').addEventListener('click', () => {
