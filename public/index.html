@@ -654,8 +654,8 @@
         const b=$('fwUpload'); if(b) b.disabled=false;
       }
       else if (m.type === 'cmdResult'){
-        if (m.ok) toast('Befehl gesendet');
-        else toast(m.error || 'Befehl abgelehnt', true);
+        if (!m.ok) toast(m.error || 'Befehl abgelehnt', true);
+        else if (!/^get/.test(m.action || '')) toast('Befehl gesendet');   // reine Abfragen (getSettings…) still
       }
     };
   }
